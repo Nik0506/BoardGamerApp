@@ -7,11 +7,14 @@ Eine Android-App zur Organisation regelmäßiger Brettspielabende. Das Projekt w
 - Adaptive Navigation zu Termin, Spielen und Profil
 - Dashboard für den nächsten Spieleabend
 - Lade-, Leer-, Inhalts- und Fehlerzustand
+- Spieler hinzufügen und bearbeiten
+- Gastgeberreihenfolge verändern
+- Folgetermin mit automatisch rotierendem Gastgeber planen
 - Domain-Modelle für Spieler und Spieleabende
-- Austauschbares In-Memory-Repository mit Beispieldaten
+- Gemeinsames, austauschbares In-Memory-Repository mit Beispieldaten
 - ViewModel-basierte Zustandsverwaltung
 
-Die Bereiche Spiele und Profil werden in späteren Iterationen umgesetzt.
+Der Bereich Spiele wird in den nächsten Iterationen umgesetzt. Die Daten bleiben bis zur geplanten Room-Integration nur während der laufenden App-Sitzung erhalten.
 
 ## Technik
 

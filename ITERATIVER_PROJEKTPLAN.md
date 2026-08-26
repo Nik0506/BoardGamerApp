@@ -203,12 +203,12 @@ Ergebnis/Demo: Die erste vollständig sichtbare User Story, zunächst mit Beispi
 
 Aufgaben:
 
-- [ ] Spielerliste anzeigen
-- [ ] Spieler lokal hinzufügen und bearbeiten
-- [ ] Gastgeberreihenfolge festlegen
-- [ ] Rotation als reine, testbare Kotlin-Funktion implementieren
-- [ ] Nächsten Termin anlegen und Gastgeber automatisch einsetzen
-- [ ] Sonderfälle testen: keine Spieler, ein Spieler, Ende der Reihenfolge
+- [x] Spielerliste anzeigen
+- [x] Spieler lokal hinzufügen und bearbeiten
+- [x] Gastgeberreihenfolge festlegen
+- [x] Rotation als reine, testbare Kotlin-Funktion implementieren
+- [x] Nächsten Termin anlegen und Gastgeber automatisch einsetzen
+- [x] Sonderfälle testen: keine Spieler, ein Spieler, Ende der Reihenfolge
 
 Akzeptanzkriterien:
 
@@ -442,4 +442,6 @@ Für jede begonnene Iteration wird dieser Block kopiert und ausgefüllt:
 
 **Iteration 1 – Dashboard mit Beispieldaten** wurde am 26.08.2026 abgeschlossen. Alle acht Unit-Tests und der Debug-Build waren erfolgreich. Die APK wurde auf einem Emulator installiert und kalt gestartet; Datum, Uhrzeit, Gastgeber, Adresse und Navigation wurden in der UI-Hierarchie geprüft. Es wurden keine AndroidRuntime-Abstürze protokolliert.
 
-**Iteration 2 – Spieler und Gastgeberrotation** wartet auf ausdrückliche Freigabe. Bis dahin werden keine Aufgaben dieser Iteration begonnen.
+**Iteration 2 – Spieler und Gastgeberrotation** wurde am 26.08.2026 abgeschlossen. Alle 19 Unit-Tests und der Debug-Build waren erfolgreich. Auf dem Emulator wurden Spielerliste, Änderung der Reihenfolge, Hinzufügen-Dialog und das Anlegen des Folgetermins geprüft. Die Rotation plante den 11.09.2026 bei Lea als nächste Gastgeberin; es wurden keine AndroidRuntime-Abstürze protokolliert.
+
+**Iteration 3 – Spielvorschläge** wartet auf ausdrückliche Freigabe. Bis dahin werden keine Aufgaben dieser Iteration begonnen.

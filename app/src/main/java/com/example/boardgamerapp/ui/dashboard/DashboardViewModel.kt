@@ -6,7 +6,6 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.example.boardgamerapp.data.repository.GameNightRepository
-import com.example.boardgamerapp.data.repository.InMemoryGameNightRepository
 import com.example.boardgamerapp.data.repository.UpcomingGameNight
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -49,12 +48,13 @@ class DashboardViewModel(
         private val dateFormatter = DateTimeFormatter.ofPattern("EEEE, d. MMMM yyyy", Locale.GERMAN)
         private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm 'Uhr'", Locale.GERMAN)
 
-        val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                require(modelClass.isAssignableFrom(DashboardViewModel::class.java))
-                return DashboardViewModel(InMemoryGameNightRepository()) as T
+        fun factory(repository: GameNightRepository): ViewModelProvider.Factory =
+            object : ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                    require(modelClass.isAssignableFrom(DashboardViewModel::class.java))
+                    return DashboardViewModel(repository) as T
+                }
             }
-        }
     }
 }
