@@ -182,12 +182,12 @@ Ergebnis/Demo: Eine navigierbare App-Hülle ohne fachliche Logik.
 
 Aufgaben:
 
-- [ ] `Player` und `GameNight` als Domain-Modelle anlegen
-- [ ] Einen In-Memory-Repository-Vertrag definieren
-- [ ] Beispieldaten für Spieler und nächsten Abend bereitstellen
-- [ ] Dashboard mit Datum, Uhrzeit, Gastgeber und Adresse gestalten
-- [ ] Lade-, Leer- und Fehlerzustand darstellen
-- [ ] `DashboardViewModel` mit unveränderlichem UI-State verwenden
+- [x] `Player` und `GameNight` als Domain-Modelle anlegen
+- [x] Einen In-Memory-Repository-Vertrag definieren
+- [x] Beispieldaten für Spieler und nächsten Abend bereitstellen
+- [x] Dashboard mit Datum, Uhrzeit, Gastgeber und Adresse gestalten
+- [x] Lade-, Leer- und Fehlerzustand darstellen
+- [x] `DashboardViewModel` mit unveränderlichem UI-State verwenden
 
 Akzeptanzkriterien:
 
@@ -440,4 +440,6 @@ Für jede begonnene Iteration wird dieser Block kopiert und ausgefüllt:
 
 **Iteration 0 – Projektbasis stabilisieren** wurde am 24.08.2026 abgeschlossen und am 26.08.2026 bestätigt. Unit-Tests und Debug-Build waren erfolgreich; der Debug-Build wurde auf einem Emulator installiert und ohne Absturz kalt gestartet.
 
-**Iteration 1 – Dashboard mit Beispieldaten** wartet auf ausdrückliche Freigabe. Bis dahin werden keine Aufgaben dieser Iteration begonnen. Nach der Freigabe wird sie vollständig abgeschlossen, bevor Room oder optionale Funktionen eingeführt werden.
+**Iteration 1 – Dashboard mit Beispieldaten** wurde am 26.08.2026 abgeschlossen. Alle acht Unit-Tests und der Debug-Build waren erfolgreich. Die APK wurde auf einem Emulator installiert und kalt gestartet; Datum, Uhrzeit, Gastgeber, Adresse und Navigation wurden in der UI-Hierarchie geprüft. Es wurden keine AndroidRuntime-Abstürze protokolliert.
+
+**Iteration 2 – Spieler und Gastgeberrotation** wartet auf ausdrückliche Freigabe. Bis dahin werden keine Aufgaben dieser Iteration begonnen.

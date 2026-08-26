@@ -14,12 +14,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.boardgamerapp.ui.dashboard.DashboardScreen
+import com.example.boardgamerapp.ui.dashboard.DashboardViewModel
 import com.example.boardgamerapp.ui.navigation.AppDestination
 import com.example.boardgamerapp.ui.screen.PlaceholderScreen
 import com.example.boardgamerapp.ui.theme.BoardGamerAppTheme
 
 @Composable
 fun BoardGamerApp() {
+    val dashboardViewModel: DashboardViewModel = viewModel(factory = DashboardViewModel.Factory)
     var currentDestination by rememberSaveable {
         mutableStateOf(AppDestination.GAME_NIGHT)
     }
@@ -42,11 +46,19 @@ fun BoardGamerApp() {
         },
     ) {
         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-            PlaceholderScreen(
-                title = currentDestination.title,
-                description = currentDestination.description,
-                modifier = Modifier.padding(innerPadding),
-            )
+            when (currentDestination) {
+                AppDestination.GAME_NIGHT -> DashboardScreen(
+                    uiState = dashboardViewModel.uiState,
+                    onRetry = dashboardViewModel::loadGameNight,
+                    modifier = Modifier.padding(innerPadding),
+                )
+
+                else -> PlaceholderScreen(
+                    title = currentDestination.title,
+                    description = currentDestination.description,
+                    modifier = Modifier.padding(innerPadding),
+                )
+            }
         }
     }
 }
