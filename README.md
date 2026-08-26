@@ -10,11 +10,15 @@ Eine Android-App zur Organisation regelmäßiger Brettspielabende. Das Projekt w
 - Spieler hinzufügen und bearbeiten
 - Gastgeberreihenfolge verändern
 - Folgetermin mit automatisch rotierendem Gastgeber planen
+- Aktives Gruppenmitglied in der lokalen Demo auswählen
+- Spiele mit optionaler Beschreibung vorschlagen
+- Vorschläge mit Urheber und zugehörigem Termin anzeigen
+- Eigene Spielvorschläge löschen
 - Domain-Modelle für Spieler und Spieleabende
 - Gemeinsames, austauschbares In-Memory-Repository mit Beispieldaten
 - ViewModel-basierte Zustandsverwaltung
 
-Der Bereich Spiele wird in den nächsten Iterationen umgesetzt. Die Daten bleiben bis zur geplanten Room-Integration nur während der laufenden App-Sitzung erhalten.
+Die Abstimmung über Spielvorschläge folgt in der nächsten Iteration. Die Daten bleiben bis zur geplanten Room-Integration nur während der laufenden App-Sitzung erhalten.
 
 ## Technik
 

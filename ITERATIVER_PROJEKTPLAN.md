@@ -224,11 +224,11 @@ Ergebnis/Demo: Die Gruppe kann gepflegt und der nächste Gastgeber bestimmt werd
 
 Aufgaben:
 
-- [ ] Spielvorschläge als Compose-Liste anzeigen
-- [ ] Formular oder Dialog für Name und optionale Beschreibung bauen
-- [ ] Vorschlag einem Spieler und Spieleabend zuordnen
-- [ ] Validierung und Löschen eines eigenen Vorschlags ergänzen
-- [ ] Leeren Zustand gestalten
+- [x] Spielvorschläge als Compose-Liste anzeigen
+- [x] Formular oder Dialog für Name und optionale Beschreibung bauen
+- [x] Vorschlag einem Spieler und Spieleabend zuordnen
+- [x] Validierung und Löschen eines eigenen Vorschlags ergänzen
+- [x] Leeren Zustand gestalten
 
 Akzeptanzkriterien:
 
@@ -444,4 +444,6 @@ Für jede begonnene Iteration wird dieser Block kopiert und ausgefüllt:
 
 **Iteration 2 – Spieler und Gastgeberrotation** wurde am 26.08.2026 abgeschlossen. Alle 19 Unit-Tests und der Debug-Build waren erfolgreich. Auf dem Emulator wurden Spielerliste, Änderung der Reihenfolge, Hinzufügen-Dialog und das Anlegen des Folgetermins geprüft. Die Rotation plante den 11.09.2026 bei Lea als nächste Gastgeberin; es wurden keine AndroidRuntime-Abstürze protokolliert.
 
-**Iteration 3 – Spielvorschläge** wartet auf ausdrückliche Freigabe. Bis dahin werden keine Aufgaben dieser Iteration begonnen.
+**Iteration 3 – Spielvorschläge** wurde am 26.08.2026 abgeschlossen. Alle 25 Unit-Tests und der Debug-Build waren erfolgreich. Auf dem Emulator wurden Vorschlagsliste, Nutzerwahl, Löschberechtigung, Eingabedialog und das unmittelbare Hinzufügen von „Azul“ geprüft. Jeder Vorschlag zeigt Urheber und Termin; es wurden keine AndroidRuntime-Abstürze protokolliert.
+
+**Iteration 4 – Spieleabstimmung** wartet auf ausdrückliche Freigabe. Bis dahin werden keine Aufgaben dieser Iteration begonnen.

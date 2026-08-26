@@ -1,11 +1,22 @@
 package com.example.boardgamerapp.data.repository
 
 import com.example.boardgamerapp.domain.model.GameNight
+import com.example.boardgamerapp.domain.model.BoardGame
 import com.example.boardgamerapp.domain.model.Player
 
 data class UpcomingGameNight(
     val gameNight: GameNight,
     val host: Player,
+)
+
+data class BoardGameSuggestion(
+    val boardGame: BoardGame,
+    val suggestedBy: Player,
+)
+
+data class GameNightSuggestions(
+    val gameNight: GameNight,
+    val suggestions: List<BoardGameSuggestion>,
 )
 
 interface GameNightRepository {
@@ -24,7 +35,19 @@ interface PlayerRepository {
     fun createNextGameNight(): Result<UpcomingGameNight>
 }
 
-interface BoardGamerRepository : GameNightRepository, PlayerRepository
+interface GameSuggestionRepository {
+    fun getGameSuggestions(): Result<GameNightSuggestions?>
+
+    fun addGameSuggestion(
+        name: String,
+        description: String,
+        suggestedByPlayerId: Long,
+    ): Result<BoardGameSuggestion>
+
+    fun deleteGameSuggestion(boardGameId: Long, requestingPlayerId: Long): Result<Unit>
+}
+
+interface BoardGamerRepository : GameNightRepository, PlayerRepository, GameSuggestionRepository
 
 enum class MoveDirection {
     UP,

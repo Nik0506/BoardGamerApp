@@ -19,10 +19,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.boardgamerapp.data.repository.InMemoryGameNightRepository
 import com.example.boardgamerapp.ui.dashboard.DashboardScreen
 import com.example.boardgamerapp.ui.dashboard.DashboardViewModel
+import com.example.boardgamerapp.ui.games.GamesScreen
+import com.example.boardgamerapp.ui.games.GamesViewModel
 import com.example.boardgamerapp.ui.navigation.AppDestination
 import com.example.boardgamerapp.ui.players.PlayersScreen
 import com.example.boardgamerapp.ui.players.PlayersViewModel
-import com.example.boardgamerapp.ui.screen.PlaceholderScreen
 import com.example.boardgamerapp.ui.theme.BoardGamerAppTheme
 
 @Composable
@@ -33,6 +34,9 @@ fun BoardGamerApp() {
     )
     val playersViewModel: PlayersViewModel = viewModel(
         factory = PlayersViewModel.factory(repository),
+    )
+    val gamesViewModel: GamesViewModel = viewModel(
+        factory = GamesViewModel.factory(repository, repository),
     )
     var currentDestination by rememberSaveable {
         mutableStateOf(AppDestination.GAME_NIGHT)
@@ -55,7 +59,7 @@ fun BoardGamerApp() {
                         when (destination) {
                             AppDestination.GAME_NIGHT -> dashboardViewModel.loadGameNight()
                             AppDestination.PROFILE -> playersViewModel.loadPlayers()
-                            AppDestination.GAMES -> Unit
+                            AppDestination.GAMES -> gamesViewModel.loadGames()
                         }
                     },
                 )
@@ -84,9 +88,16 @@ fun BoardGamerApp() {
                     modifier = Modifier.padding(innerPadding),
                 )
 
-                AppDestination.GAMES -> PlaceholderScreen(
-                    title = currentDestination.title,
-                    description = currentDestination.description,
+                AppDestination.GAMES -> GamesScreen(
+                    uiState = gamesViewModel.uiState,
+                    onSelectPlayer = gamesViewModel::selectPlayer,
+                    onAddSuggestion = gamesViewModel::beginAddSuggestion,
+                    onDeleteSuggestion = gamesViewModel::deleteSuggestion,
+                    onNameChange = gamesViewModel::updateEditorName,
+                    onDescriptionChange = gamesViewModel::updateEditorDescription,
+                    onSaveSuggestion = gamesViewModel::saveSuggestion,
+                    onDismissEditor = gamesViewModel::dismissEditor,
+                    onDismissMessage = gamesViewModel::clearMessage,
                     modifier = Modifier.padding(innerPadding),
                 )
             }

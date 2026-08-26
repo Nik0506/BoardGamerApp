@@ -1,6 +1,7 @@
 package com.example.boardgamerapp.data.repository
 
 import com.example.boardgamerapp.domain.HostRotation
+import com.example.boardgamerapp.domain.model.BoardGame
 import com.example.boardgamerapp.domain.model.GameNight
 import com.example.boardgamerapp.domain.model.GameNightStatus
 import com.example.boardgamerapp.domain.model.Player
@@ -9,24 +10,69 @@ import java.time.LocalDateTime
 class InMemoryGameNightRepository(
     players: List<Player> = samplePlayers,
     gameNights: List<GameNight> = sampleGameNights,
+    boardGames: List<BoardGame> = sampleBoardGames,
     private val now: () -> LocalDateTime = LocalDateTime::now,
 ) : BoardGamerRepository {
 
     private val players = players.toMutableList()
     private val gameNights = gameNights.toMutableList()
+    private val boardGames = boardGames.toMutableList()
 
     override fun getUpcomingGameNight(): Result<UpcomingGameNight?> = runCatching {
-        val nextGameNight = gameNights
-            .asSequence()
-            .filter { it.status == GameNightStatus.PLANNED }
-            .filter { !it.startsAt.isBefore(now()) }
-            .minByOrNull { it.startsAt }
-            ?: return@runCatching null
+        val nextGameNight = findUpcomingGameNight() ?: return@runCatching null
 
         val host = players.firstOrNull { it.id == nextGameNight.hostId }
             ?: error("Für den nächsten Spieleabend wurde kein Gastgeber gefunden.")
 
         UpcomingGameNight(gameNight = nextGameNight, host = host)
+    }
+
+    override fun getGameSuggestions(): Result<GameNightSuggestions?> = runCatching {
+        val gameNight = findUpcomingGameNight() ?: return@runCatching null
+        val suggestions = boardGames
+            .asSequence()
+            .filter { it.gameNightId == gameNight.id }
+            .sortedBy { it.name.lowercase() }
+            .map { boardGame ->
+                val player = players.firstOrNull { it.id == boardGame.suggestedByPlayerId }
+                    ?: error("Für ${boardGame.name} wurde kein Spieler gefunden.")
+                BoardGameSuggestion(boardGame = boardGame, suggestedBy = player)
+            }
+            .toList()
+        GameNightSuggestions(gameNight = gameNight, suggestions = suggestions)
+    }
+
+    override fun addGameSuggestion(
+        name: String,
+        description: String,
+        suggestedByPlayerId: Long,
+    ): Result<BoardGameSuggestion> = runCatching {
+        val gameNight = findUpcomingGameNight()
+            ?: error("Es gibt keinen kommenden Spieleabend.")
+        val player = players.firstOrNull { it.id == suggestedByPlayerId }
+            ?: error("Der ausgewählte Spieler wurde nicht gefunden.")
+        val boardGame = BoardGame(
+            id = (boardGames.maxOfOrNull { it.id } ?: 0L) + 1L,
+            name = name.required("Spielname"),
+            description = description.trim(),
+            suggestedByPlayerId = player.id,
+            gameNightId = gameNight.id,
+        )
+        boardGames += boardGame
+        BoardGameSuggestion(boardGame = boardGame, suggestedBy = player)
+    }
+
+    override fun deleteGameSuggestion(
+        boardGameId: Long,
+        requestingPlayerId: Long,
+    ): Result<Unit> = runCatching {
+        val boardGame = boardGames.firstOrNull { it.id == boardGameId }
+            ?: error("Der Spielvorschlag wurde nicht gefunden.")
+        require(boardGame.suggestedByPlayerId == requestingPlayerId) {
+            "Nur der eigene Spielvorschlag kann gelöscht werden."
+        }
+        boardGames.remove(boardGame)
+        Unit
     }
 
     override fun getPlayers(): Result<List<Player>> = runCatching {
@@ -103,6 +149,12 @@ class InMemoryGameNightRepository(
         UpcomingGameNight(gameNight = gameNight, host = host)
     }
 
+    private fun findUpcomingGameNight(): GameNight? = gameNights
+        .asSequence()
+        .filter { it.status == GameNightStatus.PLANNED }
+        .filter { !it.startsAt.isBefore(now()) }
+        .minByOrNull { it.startsAt }
+
     private fun String.required(fieldName: String): String {
         val value = trim()
         require(value.isNotEmpty()) { "$fieldName darf nicht leer sein." }
@@ -132,6 +184,23 @@ class InMemoryGameNightRepository(
                 hostId = 1,
                 location = "Musterstraße 12, 33100 Paderborn",
                 status = GameNightStatus.PLANNED,
+            ),
+        )
+
+        private val sampleBoardGames = listOf(
+            BoardGame(
+                id = 1,
+                name = "Catan",
+                description = "Handel und Aufbau für drei bis vier Personen.",
+                suggestedByPlayerId = 1,
+                gameNightId = 1,
+            ),
+            BoardGame(
+                id = 2,
+                name = "Heat",
+                description = "Schnelles Autorennen mit taktischem Handmanagement.",
+                suggestedByPlayerId = 2,
+                gameNightId = 1,
             ),
         )
     }
