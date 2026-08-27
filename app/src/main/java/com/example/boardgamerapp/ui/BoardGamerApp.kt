@@ -79,6 +79,13 @@ fun BoardGamerApp() {
                 AppDestination.GAME_NIGHT -> DashboardScreen(
                     uiState = dashboardViewModel.uiState,
                     onRetry = dashboardViewModel::loadGameNight,
+                    onSelectPlayer = dashboardViewModel::selectPlayer,
+                    onAddLateNotice = dashboardViewModel::beginLateNotice,
+                    onSelectLateNoticePreset = dashboardViewModel::selectLateNoticePreset,
+                    onLateNoticeCustomMinutesChange = dashboardViewModel::updateLateNoticeCustomMinutes,
+                    onSaveLateNotice = dashboardViewModel::saveLateNotice,
+                    onDismissLateNoticeEditor = dashboardViewModel::dismissLateNoticeEditor,
+                    onDismissMessage = dashboardViewModel::clearMessage,
                     modifier = Modifier.padding(innerPadding),
                 )
 

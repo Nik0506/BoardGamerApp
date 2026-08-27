@@ -4,6 +4,7 @@ import com.example.boardgamerapp.domain.HostRotation
 import com.example.boardgamerapp.domain.model.BoardGame
 import com.example.boardgamerapp.domain.model.GameNight
 import com.example.boardgamerapp.domain.model.GameNightStatus
+import com.example.boardgamerapp.domain.model.LateNotice
 import com.example.boardgamerapp.domain.model.Player
 import com.example.boardgamerapp.domain.model.Vote
 import java.time.LocalDateTime
@@ -13,6 +14,7 @@ class InMemoryGameNightRepository(
     gameNights: List<GameNight> = sampleGameNights,
     boardGames: List<BoardGame> = sampleBoardGames,
     votes: List<Vote> = sampleVotes,
+    lateNotices: List<LateNotice> = emptyList(),
     private val now: () -> LocalDateTime = LocalDateTime::now,
 ) : BoardGamerRepository {
 
@@ -20,6 +22,7 @@ class InMemoryGameNightRepository(
     private val gameNights = gameNights.toMutableList()
     private val boardGames = boardGames.toMutableList()
     private val votes = votes.toMutableList()
+    private val lateNotices = lateNotices.toMutableList()
 
     override fun getUpcomingGameNight(): Result<UpcomingGameNight?> = runCatching {
         val nextGameNight = findUpcomingGameNight() ?: return@runCatching null
@@ -41,8 +44,34 @@ class InMemoryGameNightRepository(
                     ?: error("Für ${boardGame.name} wurde kein Spieler gefunden.")
                 BoardGameSuggestion(boardGame = boardGame, suggestedBy = player)
             }
+
             .toList()
         GameNightSuggestions(gameNight = gameNight, suggestions = suggestions)
+    }
+
+    override fun getLateNotices(): Result<List<LateNotice>> = runCatching {
+        val gameNight = findUpcomingGameNight() ?: return@runCatching emptyList()
+        lateNotices
+            .filter { it.gameNightId == gameNight.id }
+            .sortedByDescending { it.createdAt }
+    }
+
+    override fun addLateNotice(playerId: Long, minutes: Int): Result<LateNotice> = runCatching {
+        val gameNight = findUpcomingGameNight()
+            ?: error("Es gibt keinen kommenden Spieleabend.")
+        require(minutes > 0) { "Die Verspätung muss größer als 0 Minuten sein." }
+        require(players.any { it.id == playerId }) {
+            "Der ausgewählte Spieler wurde nicht gefunden."
+        }
+        val lateNotice = LateNotice(
+            id = (lateNotices.maxOfOrNull { it.id } ?: 0L) + 1L,
+            playerId = playerId,
+            gameNightId = gameNight.id,
+            minutes = minutes,
+            createdAt = now(),
+        )
+        lateNotices += lateNotice
+        lateNotice
     }
 
     override fun addGameSuggestion(

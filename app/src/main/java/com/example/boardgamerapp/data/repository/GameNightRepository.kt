@@ -2,6 +2,7 @@ package com.example.boardgamerapp.data.repository
 
 import com.example.boardgamerapp.domain.model.GameNight
 import com.example.boardgamerapp.domain.model.BoardGame
+import com.example.boardgamerapp.domain.model.LateNotice
 import com.example.boardgamerapp.domain.model.Player
 import com.example.boardgamerapp.domain.model.Vote
 
@@ -39,6 +40,12 @@ interface GameNightRepository {
     fun getUpcomingGameNight(): Result<UpcomingGameNight?>
 }
 
+interface LateNoticeRepository {
+    fun getLateNotices(): Result<List<LateNotice>>
+
+    fun addLateNotice(playerId: Long, minutes: Int): Result<LateNotice>
+}
+
 interface PlayerRepository {
     fun getPlayers(): Result<List<Player>>
 
@@ -71,6 +78,7 @@ interface VotingRepository {
 
 interface BoardGamerRepository :
     GameNightRepository,
+    LateNoticeRepository,
     PlayerRepository,
     GameSuggestionRepository,
     VotingRepository

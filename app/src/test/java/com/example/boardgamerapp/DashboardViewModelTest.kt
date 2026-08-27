@@ -1,6 +1,7 @@
 package com.example.boardgamerapp
 
 import com.example.boardgamerapp.data.repository.GameNightRepository
+import com.example.boardgamerapp.data.repository.InMemoryGameNightRepository
 import com.example.boardgamerapp.data.repository.UpcomingGameNight
 import com.example.boardgamerapp.domain.model.GameNight
 import com.example.boardgamerapp.domain.model.GameNightStatus
@@ -50,6 +51,52 @@ class DashboardViewModelTest {
 
         assertTrue(viewModel.uiState is DashboardUiState.Error)
         assertEquals("Testfehler", (viewModel.uiState as DashboardUiState.Error).message)
+    }
+
+    @Test
+    fun `saves selected player custom late notice and reloads dashboard`() {
+        val max = Player(1, "Max", "Adresse 1", 1)
+        val lea = Player(2, "Lea", "Adresse 2", 2)
+        val gameNight = GameNight(
+            id = 1,
+            startsAt = LocalDateTime.of(2026, 8, 28, 19, 0),
+            hostId = max.id,
+            location = max.address,
+            status = GameNightStatus.PLANNED,
+        )
+        val repository = InMemoryGameNightRepository(
+            players = listOf(max, lea),
+            gameNights = listOf(gameNight),
+            now = { LocalDateTime.of(2026, 8, 27, 12, 0) },
+        )
+        val viewModel = DashboardViewModel(repository, repository, repository)
+
+        viewModel.selectPlayer(lea.id)
+        viewModel.beginLateNotice()
+        viewModel.updateLateNoticeCustomMinutes("25")
+        viewModel.saveLateNotice()
+
+        val state = viewModel.uiState as DashboardUiState.Content
+        assertEquals(lea.id, state.selectedPlayerId)
+        assertEquals(25, state.lateNotices.single().minutes)
+        assertEquals("Lea", state.lateNotices.single().playerName)
+        assertEquals("Verspätungsmeldung wurde lokal gespeichert.", state.message)
+    }
+
+    @Test
+    fun `shows clear error for non positive custom minutes`() {
+        val repository = InMemoryGameNightRepository(
+            now = { LocalDateTime.of(2026, 8, 27, 12, 0) },
+        )
+        val viewModel = DashboardViewModel(repository, repository, repository)
+
+        viewModel.beginLateNotice()
+        viewModel.updateLateNoticeCustomMinutes("-5")
+        viewModel.saveLateNotice()
+
+        val state = viewModel.uiState as DashboardUiState.Content
+        assertEquals("Gib eine positive Minutenzahl ein.", state.editor?.errorMessage)
+        assertTrue(state.lateNotices.isEmpty())
     }
 
     private fun repositoryReturning(

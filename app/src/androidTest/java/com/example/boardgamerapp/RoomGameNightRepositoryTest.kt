@@ -47,6 +47,36 @@ class RoomGameNightRepositoryTest {
     }
 
     @Test
+    fun repositoryPersistsLateNoticeAndAssociatesItWithUpcomingNight() {
+        val repository = RoomGameNightRepository(
+            database,
+            now = { LocalDateTime.of(2026, 8, 27, 12, 0) },
+        )
+        val player = repository.addPlayer("Max", "Adresse 1").getOrThrow()
+        repository.createNextGameNight().getOrThrow()
+
+        val notice = repository.addLateNotice(player.id, 30).getOrThrow()
+
+        assertEquals(30, notice.minutes)
+        assertEquals(player.id, notice.playerId)
+        assertEquals(listOf(notice), repository.getLateNotices().getOrThrow())
+        assertEquals(1, database.lateNoticeDao().count())
+    }
+
+    @Test
+    fun roomRepositoryRejectsNonPositiveLateNotice() {
+        val repository = RoomGameNightRepository(
+            database,
+            now = { LocalDateTime.of(2026, 8, 27, 12, 0) },
+        )
+        val player = repository.addPlayer("Max", "Adresse 1").getOrThrow()
+        repository.createNextGameNight().getOrThrow()
+
+        assertTrue(repository.addLateNotice(player.id, 0).isFailure)
+        assertEquals(0, database.lateNoticeDao().count())
+    }
+
+    @Test
     fun voteUniqueIndexRejectsSecondVoteForSamePlayerAndNight() {
         database.playerDao().insert(PlayerEntity(id = 1, name = "Max", address = "Adresse", hostOrder = 1))
         database.gameNightDao().insert(
@@ -85,9 +115,9 @@ class RoomGameNightRepositoryTest {
     }
 
     @Test
-    fun schemaHasVersionOneAndAllIterationFiveTables() {
+    fun schemaHasVersionTwoAndAllIterationSixTables() {
         val sqliteDatabase = database.openHelper.writableDatabase
-        assertEquals(1, sqliteDatabase.version)
+        assertEquals(2, sqliteDatabase.version)
         val tables = sqliteDatabase.query(
             "SELECT name FROM sqlite_master WHERE type = 'table'",
         ).use { cursor ->
@@ -101,5 +131,6 @@ class RoomGameNightRepositoryTest {
         assertTrue("game_nights" in tables)
         assertTrue("board_games" in tables)
         assertTrue("votes" in tables)
+        assertTrue("late_notices" in tables)
     }
 }
