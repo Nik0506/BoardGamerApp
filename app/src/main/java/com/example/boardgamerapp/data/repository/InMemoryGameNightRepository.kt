@@ -5,18 +5,21 @@ import com.example.boardgamerapp.domain.model.BoardGame
 import com.example.boardgamerapp.domain.model.GameNight
 import com.example.boardgamerapp.domain.model.GameNightStatus
 import com.example.boardgamerapp.domain.model.Player
+import com.example.boardgamerapp.domain.model.Vote
 import java.time.LocalDateTime
 
 class InMemoryGameNightRepository(
     players: List<Player> = samplePlayers,
     gameNights: List<GameNight> = sampleGameNights,
     boardGames: List<BoardGame> = sampleBoardGames,
+    votes: List<Vote> = sampleVotes,
     private val now: () -> LocalDateTime = LocalDateTime::now,
 ) : BoardGamerRepository {
 
     private val players = players.toMutableList()
     private val gameNights = gameNights.toMutableList()
     private val boardGames = boardGames.toMutableList()
+    private val votes = votes.toMutableList()
 
     override fun getUpcomingGameNight(): Result<UpcomingGameNight?> = runCatching {
         val nextGameNight = findUpcomingGameNight() ?: return@runCatching null
@@ -62,6 +65,53 @@ class InMemoryGameNightRepository(
         BoardGameSuggestion(boardGame = boardGame, suggestedBy = player)
     }
 
+    override fun getVotingSnapshot(): Result<VotingSnapshot?> = runCatching {
+        val gameNightSuggestions = getGameSuggestions().getOrThrow()
+            ?: return@runCatching null
+        val gameNightVotes = votes.filter { it.gameNightId == gameNightSuggestions.gameNight.id }
+        val results = gameNightSuggestions.suggestions
+            .map { suggestion ->
+                BoardGameVoteResult(
+                    suggestion = suggestion,
+                    voterIds = gameNightVotes
+                        .asSequence()
+                        .filter { it.boardGameId == suggestion.boardGame.id }
+                        .map { it.playerId }
+                        .toSet(),
+                )
+            }
+            .sortedWith(
+                compareByDescending<BoardGameVoteResult> { it.voteCount }
+                    .thenBy { it.suggestion.boardGame.name.lowercase() },
+            )
+        VotingSnapshot(
+            gameNight = gameNightSuggestions.gameNight,
+            results = results,
+            playerCount = players.size,
+        )
+    }
+
+    override fun castVote(playerId: Long, boardGameId: Long): Result<Vote> = runCatching {
+        val gameNight = findUpcomingGameNight()
+            ?: error("Es gibt keinen kommenden Spieleabend.")
+        require(players.any { it.id == playerId }) {
+            "Der ausgewählte Spieler wurde nicht gefunden."
+        }
+        val boardGame = boardGames.firstOrNull {
+            it.id == boardGameId && it.gameNightId == gameNight.id
+        } ?: error("Das ausgewählte Spiel gehört nicht zum kommenden Spieleabend.")
+
+        votes.removeAll { it.playerId == playerId && it.gameNightId == gameNight.id }
+        val vote = Vote(
+            id = (votes.maxOfOrNull { it.id } ?: 0L) + 1L,
+            playerId = playerId,
+            boardGameId = boardGame.id,
+            gameNightId = gameNight.id,
+        )
+        votes += vote
+        vote
+    }
+
     override fun deleteGameSuggestion(
         boardGameId: Long,
         requestingPlayerId: Long,
@@ -72,6 +122,7 @@ class InMemoryGameNightRepository(
             "Nur der eigene Spielvorschlag kann gelöscht werden."
         }
         boardGames.remove(boardGame)
+        votes.removeAll { it.boardGameId == boardGame.id }
         Unit
     }
 
@@ -200,6 +251,21 @@ class InMemoryGameNightRepository(
                 name = "Heat",
                 description = "Schnelles Autorennen mit taktischem Handmanagement.",
                 suggestedByPlayerId = 2,
+                gameNightId = 1,
+            ),
+        )
+
+        private val sampleVotes = listOf(
+            Vote(
+                id = 1,
+                playerId = 1,
+                boardGameId = 1,
+                gameNightId = 1,
+            ),
+            Vote(
+                id = 2,
+                playerId = 2,
+                boardGameId = 2,
                 gameNightId = 1,
             ),
         )

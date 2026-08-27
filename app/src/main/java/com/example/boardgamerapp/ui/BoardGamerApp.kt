@@ -36,7 +36,7 @@ fun BoardGamerApp() {
         factory = PlayersViewModel.factory(repository),
     )
     val gamesViewModel: GamesViewModel = viewModel(
-        factory = GamesViewModel.factory(repository, repository),
+        factory = GamesViewModel.factory(repository, repository, repository),
     )
     var currentDestination by rememberSaveable {
         mutableStateOf(AppDestination.GAME_NIGHT)
@@ -93,6 +93,7 @@ fun BoardGamerApp() {
                     onSelectPlayer = gamesViewModel::selectPlayer,
                     onAddSuggestion = gamesViewModel::beginAddSuggestion,
                     onDeleteSuggestion = gamesViewModel::deleteSuggestion,
+                    onCastVote = gamesViewModel::castVote,
                     onNameChange = gamesViewModel::updateEditorName,
                     onDescriptionChange = gamesViewModel::updateEditorDescription,
                     onSaveSuggestion = gamesViewModel::saveSuggestion,

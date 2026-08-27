@@ -244,12 +244,12 @@ Ergebnis/Demo: Spiele können vorgeschlagen und wieder entfernt werden.
 
 Aufgaben:
 
-- [ ] Aktiven Spieler für die lokale Demo auswählbar machen
-- [ ] Pro Spieler und Abend genau eine Stimme speichern
-- [ ] Bereits abgegebene Stimme änderbar machen
-- [ ] Stimmen zählen und sortiert darstellen
-- [ ] Gewinner beziehungsweise Gleichstand anzeigen
-- [ ] Zählung und Eindeutigkeitsregel testen
+- [x] Aktiven Spieler für die lokale Demo auswählbar machen
+- [x] Pro Spieler und Abend genau eine Stimme speichern
+- [x] Bereits abgegebene Stimme änderbar machen
+- [x] Stimmen zählen und sortiert darstellen
+- [x] Gewinner beziehungsweise Gleichstand anzeigen
+- [x] Zählung und Eindeutigkeitsregel testen
 
 Akzeptanzkriterien:
 
@@ -446,4 +446,6 @@ Für jede begonnene Iteration wird dieser Block kopiert und ausgefüllt:
 
 **Iteration 3 – Spielvorschläge** wurde am 26.08.2026 abgeschlossen. Alle 25 Unit-Tests und der Debug-Build waren erfolgreich. Auf dem Emulator wurden Vorschlagsliste, Nutzerwahl, Löschberechtigung, Eingabedialog und das unmittelbare Hinzufügen von „Azul“ geprüft. Jeder Vorschlag zeigt Urheber und Termin; es wurden keine AndroidRuntime-Abstürze protokolliert.
 
-**Iteration 4 – Spieleabstimmung** wartet auf ausdrückliche Freigabe. Bis dahin werden keine Aufgaben dieser Iteration begonnen.
+**Iteration 4 – Spieleabstimmung** wurde am 27.08.2026 abgeschlossen. Alle 33 Unit-Tests und der Debug-Build waren erfolgreich. Auf dem Emulator wurden Gleichstand, Beteiligung, hervorgehobene eigene Stimme und der Stimmenwechsel von Max zu Heat geprüft. Nach dem Wechsel wurde Heat mit zwei Stimmen als Gewinner nach oben sortiert; es wurden keine AndroidRuntime-Abstürze protokolliert.
+
+**Iteration 5 – Dauerhafte lokale Speicherung mit Room** wartet auf ausdrückliche Freigabe. Bis dahin werden keine Aufgaben dieser Iteration begonnen.

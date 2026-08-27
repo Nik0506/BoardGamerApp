@@ -3,6 +3,7 @@ package com.example.boardgamerapp.data.repository
 import com.example.boardgamerapp.domain.model.GameNight
 import com.example.boardgamerapp.domain.model.BoardGame
 import com.example.boardgamerapp.domain.model.Player
+import com.example.boardgamerapp.domain.model.Vote
 
 data class UpcomingGameNight(
     val gameNight: GameNight,
@@ -18,6 +19,21 @@ data class GameNightSuggestions(
     val gameNight: GameNight,
     val suggestions: List<BoardGameSuggestion>,
 )
+
+data class BoardGameVoteResult(
+    val suggestion: BoardGameSuggestion,
+    val voterIds: Set<Long>,
+) {
+    val voteCount: Int = voterIds.size
+}
+
+data class VotingSnapshot(
+    val gameNight: GameNight,
+    val results: List<BoardGameVoteResult>,
+    val playerCount: Int,
+) {
+    val totalVotes: Int = results.sumOf { it.voteCount }
+}
 
 interface GameNightRepository {
     fun getUpcomingGameNight(): Result<UpcomingGameNight?>
@@ -47,7 +63,17 @@ interface GameSuggestionRepository {
     fun deleteGameSuggestion(boardGameId: Long, requestingPlayerId: Long): Result<Unit>
 }
 
-interface BoardGamerRepository : GameNightRepository, PlayerRepository, GameSuggestionRepository
+interface VotingRepository {
+    fun getVotingSnapshot(): Result<VotingSnapshot?>
+
+    fun castVote(playerId: Long, boardGameId: Long): Result<Vote>
+}
+
+interface BoardGamerRepository :
+    GameNightRepository,
+    PlayerRepository,
+    GameSuggestionRepository,
+    VotingRepository
 
 enum class MoveDirection {
     UP,

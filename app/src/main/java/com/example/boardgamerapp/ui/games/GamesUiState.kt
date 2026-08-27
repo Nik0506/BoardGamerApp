@@ -12,6 +12,9 @@ data class GameSuggestionUiModel(
     val suggestedByPlayerId: Long,
     val suggestedByName: String,
     val gameNightDate: String,
+    val voterIds: Set<Long> = emptySet(),
+    val voteCount: Int = voterIds.size,
+    val isSelected: Boolean = false,
 )
 
 data class GameSuggestionEditorUiState(
@@ -25,6 +28,9 @@ data class GamesUiState(
     val selectedPlayerId: Long? = null,
     val suggestions: List<GameSuggestionUiModel> = emptyList(),
     val gameNightDate: String? = null,
+    val totalVotes: Int = 0,
+    val playerCount: Int = 0,
+    val resultText: String = "Noch keine Stimmen",
     val isLoading: Boolean = true,
     val editor: GameSuggestionEditorUiState? = null,
     val message: String? = null,

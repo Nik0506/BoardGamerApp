@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -32,6 +33,7 @@ fun GamesScreen(
     onSelectPlayer: (Long) -> Unit,
     onAddSuggestion: () -> Unit,
     onDeleteSuggestion: (Long) -> Unit,
+    onCastVote: (Long) -> Unit,
     onNameChange: (String) -> Unit,
     onDescriptionChange: (String) -> Unit,
     onSaveSuggestion: () -> Unit,
@@ -89,6 +91,16 @@ fun GamesScreen(
             item { MessageCard(message, true, onDismissMessage) }
         }
 
+        if (!uiState.isLoading && uiState.gameNightDate != null) {
+            item {
+                VotingSummaryCard(
+                    resultText = uiState.resultText,
+                    totalVotes = uiState.totalVotes,
+                    playerCount = uiState.playerCount,
+                )
+            }
+        }
+
         if (uiState.isLoading) {
             item {
                 Row(
@@ -114,6 +126,7 @@ fun GamesScreen(
                     suggestion = suggestion,
                     canDelete = suggestion.suggestedByPlayerId == uiState.selectedPlayerId,
                     onDelete = { onDeleteSuggestion(suggestion.id) },
+                    onCastVote = { onCastVote(suggestion.id) },
                 )
             }
         }
@@ -147,8 +160,18 @@ private fun SuggestionCard(
     suggestion: GameSuggestionUiModel,
     canDelete: Boolean,
     onDelete: () -> Unit,
+    onCastVote: () -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (suggestion.isSelected) {
+                MaterialTheme.colorScheme.secondaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceContainer
+            },
+        ),
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = suggestion.name,
@@ -174,6 +197,25 @@ private fun SuggestionCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = if (suggestion.voteCount == 1) "1 Stimme" else "${suggestion.voteCount} Stimmen",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                Button(
+                    onClick = onCastVote,
+                    enabled = !suggestion.isSelected,
+                ) {
+                    Text(if (suggestion.isSelected) "Deine Stimme" else "Abstimmen")
+                }
+            }
             if (canDelete) {
                 TextButton(
                     onClick = onDelete,
@@ -182,6 +224,39 @@ private fun SuggestionCard(
                     Text("Löschen")
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun VotingSummaryCard(
+    resultText: String,
+    totalVotes: Int,
+    playerCount: Int,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+        ),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Abstimmung",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            Text(
+                text = resultText,
+                modifier = Modifier.padding(top = 4.dp),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = "$totalVotes von $playerCount haben abgestimmt",
+                modifier = Modifier.padding(top = 6.dp),
+                style = MaterialTheme.typography.bodyMedium,
+            )
         }
     }
 }
@@ -276,12 +351,15 @@ private fun GamesScreenPreview() {
                         suggestedByPlayerId = 1,
                         suggestedByName = "Max Mustermann",
                         gameNightDate = "Freitag, 28. August 2026",
+                        voterIds = setOf(1),
+                        isSelected = true,
                     ),
                 ),
             ),
             onSelectPlayer = {},
             onAddSuggestion = {},
             onDeleteSuggestion = {},
+            onCastVote = {},
             onNameChange = {},
             onDescriptionChange = {},
             onSaveSuggestion = {},

@@ -5,15 +5,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.example.boardgamerapp.data.repository.GameNightSuggestions
 import com.example.boardgamerapp.data.repository.GameSuggestionRepository
 import com.example.boardgamerapp.data.repository.PlayerRepository
+import com.example.boardgamerapp.data.repository.VotingRepository
+import com.example.boardgamerapp.data.repository.VotingSnapshot
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 class GamesViewModel(
     private val gameRepository: GameSuggestionRepository,
     private val playerRepository: PlayerRepository,
+    private val votingRepository: VotingRepository,
 ) : ViewModel() {
 
     var uiState by mutableStateOf(GamesUiState())
@@ -26,9 +28,9 @@ class GamesViewModel(
     fun loadGames() {
         uiState = uiState.copy(isLoading = true, errorMessage = null)
         val playersResult = playerRepository.getPlayers()
-        val suggestionsResult = gameRepository.getGameSuggestions()
+        val votingResult = votingRepository.getVotingSnapshot()
 
-        val error = playersResult.exceptionOrNull() ?: suggestionsResult.exceptionOrNull()
+        val error = playersResult.exceptionOrNull() ?: votingResult.exceptionOrNull()
         if (error != null) {
             uiState = uiState.copy(
                 isLoading = false,
@@ -43,21 +45,45 @@ class GamesViewModel(
         val selectedPlayerId = uiState.selectedPlayerId
             ?.takeIf { selectedId -> players.any { it.id == selectedId } }
             ?: players.firstOrNull()?.id
-        val gameNightSuggestions = suggestionsResult.getOrThrow()
+        val votingSnapshot = votingResult.getOrThrow()
 
         uiState = uiState.copy(
             players = players,
             selectedPlayerId = selectedPlayerId,
-            suggestions = gameNightSuggestions.toUiModels(),
-            gameNightDate = gameNightSuggestions?.gameNight?.startsAt?.format(dateFormatter),
+            suggestions = votingSnapshot.toUiModels(selectedPlayerId),
+            gameNightDate = votingSnapshot?.gameNight?.startsAt?.format(dateFormatter),
+            totalVotes = votingSnapshot?.totalVotes ?: 0,
+            playerCount = votingSnapshot?.playerCount ?: players.size,
+            resultText = votingSnapshot.resultText(),
             isLoading = false,
         )
     }
 
     fun selectPlayer(playerId: Long) {
         if (uiState.players.any { it.id == playerId }) {
-            uiState = uiState.copy(selectedPlayerId = playerId, message = null)
+            uiState = uiState.copy(
+                selectedPlayerId = playerId,
+                suggestions = uiState.suggestions.map {
+                    it.copy(isSelected = playerId in it.voterIds)
+                },
+                message = null,
+            )
         }
+    }
+
+    fun castVote(boardGameId: Long) {
+        val playerId = uiState.selectedPlayerId ?: return
+        votingRepository.castVote(playerId, boardGameId).fold(
+            onSuccess = {
+                uiState = uiState.copy(message = "Deine Stimme wurde gespeichert.")
+                loadGames()
+            },
+            onFailure = { error ->
+                uiState = uiState.copy(
+                    errorMessage = error.message ?: "Die Stimme konnte nicht gespeichert werden.",
+                )
+            },
+        )
     }
 
     fun beginAddSuggestion() {
@@ -133,10 +159,11 @@ class GamesViewModel(
         uiState = uiState.copy(message = null, errorMessage = null)
     }
 
-    private fun GameNightSuggestions?.toUiModels(): List<GameSuggestionUiModel> {
+    private fun VotingSnapshot?.toUiModels(selectedPlayerId: Long?): List<GameSuggestionUiModel> {
         if (this == null) return emptyList()
         val formattedDate = gameNight.startsAt.format(dateFormatter)
-        return suggestions.map { suggestion ->
+        return results.map { result ->
+            val suggestion = result.suggestion
             GameSuggestionUiModel(
                 id = suggestion.boardGame.id,
                 name = suggestion.boardGame.name,
@@ -144,7 +171,20 @@ class GamesViewModel(
                 suggestedByPlayerId = suggestion.suggestedBy.id,
                 suggestedByName = suggestion.suggestedBy.name,
                 gameNightDate = formattedDate,
+                voterIds = result.voterIds,
+                isSelected = selectedPlayerId in result.voterIds,
             )
+        }
+    }
+
+    private fun VotingSnapshot?.resultText(): String {
+        if (this == null || results.isEmpty() || totalVotes == 0) return "Noch keine Stimmen"
+        val highestVoteCount = results.maxOf { it.voteCount }
+        val leaders = results.filter { it.voteCount == highestVoteCount }
+        return if (leaders.size == 1) {
+            "Aktuell vorne: ${leaders.single().suggestion.boardGame.name}"
+        } else {
+            "Gleichstand: ${leaders.joinToString(" und ") { it.suggestion.boardGame.name }}"
         }
     }
 
@@ -155,11 +195,12 @@ class GamesViewModel(
         fun factory(
             gameRepository: GameSuggestionRepository,
             playerRepository: PlayerRepository,
+            votingRepository: VotingRepository,
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 require(modelClass.isAssignableFrom(GamesViewModel::class.java))
-                return GamesViewModel(gameRepository, playerRepository) as T
+                return GamesViewModel(gameRepository, playerRepository, votingRepository) as T
             }
         }
     }

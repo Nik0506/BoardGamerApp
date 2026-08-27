@@ -14,11 +14,15 @@ Eine Android-App zur Organisation regelmäßiger Brettspielabende. Das Projekt w
 - Spiele mit optionaler Beschreibung vorschlagen
 - Vorschläge mit Urheber und zugehörigem Termin anzeigen
 - Eigene Spielvorschläge löschen
+- Pro Spieler und Spieleabend genau eine Stimme abgeben oder ändern
+- Beteiligung und Stimmenzahlen anzeigen
+- Ergebnisse nach Stimmen sortieren
+- Gewinner oder Gleichstand unmittelbar darstellen
 - Domain-Modelle für Spieler und Spieleabende
 - Gemeinsames, austauschbares In-Memory-Repository mit Beispieldaten
 - ViewModel-basierte Zustandsverwaltung
 
-Die Abstimmung über Spielvorschläge folgt in der nächsten Iteration. Die Daten bleiben bis zur geplanten Room-Integration nur während der laufenden App-Sitzung erhalten.
+Die Kernabläufe von Terminplanung, Gastgeberrotation, Spielvorschlägen und Abstimmung funktionieren lokal. Die Daten bleiben bis zur nächsten Iteration nur während der laufenden App-Sitzung erhalten; anschließend wird das In-Memory-Repository durch Room ersetzt.
 
 ## Technik
 
