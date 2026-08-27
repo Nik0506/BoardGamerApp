@@ -8,13 +8,18 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
+import com.example.boardgamerapp.data.repository.MockGameNightRepository
 import com.example.boardgamerapp.ui.navigation.AppDestination
+import com.example.boardgamerapp.ui.dashboard.DashboardScreen
+import com.example.boardgamerapp.ui.dashboard.DashboardViewModel
 import com.example.boardgamerapp.ui.screen.PlaceholderScreen
 import com.example.boardgamerapp.ui.theme.BoardGamerAppTheme
 
@@ -23,6 +28,10 @@ fun BoardGamerApp() {
     var currentDestination by rememberSaveable {
         mutableStateOf(AppDestination.GAME_NIGHT)
     }
+    val repository = remember { MockGameNightRepository() }
+    val dashboardViewModel: DashboardViewModel = viewModel(
+        factory = DashboardViewModel.factory(repository),
+    )
 
     NavigationSuiteScaffold(
         navigationSuiteItems = {
@@ -42,11 +51,18 @@ fun BoardGamerApp() {
         },
     ) {
         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-            PlaceholderScreen(
-                title = currentDestination.title,
-                description = currentDestination.description,
-                modifier = Modifier.padding(innerPadding),
-            )
+            if (currentDestination == AppDestination.GAME_NIGHT) {
+                DashboardScreen(
+                    viewModel = dashboardViewModel,
+                    modifier = Modifier.padding(innerPadding),
+                )
+            } else {
+                PlaceholderScreen(
+                    title = currentDestination.title,
+                    description = currentDestination.description,
+                    modifier = Modifier.padding(innerPadding),
+                )
+            }
         }
     }
 }
