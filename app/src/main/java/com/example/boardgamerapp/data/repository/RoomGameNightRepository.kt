@@ -4,12 +4,14 @@ import android.content.Context
 import com.example.boardgamerapp.data.local.AppDatabase
 import com.example.boardgamerapp.data.local.entity.BoardGameEntity
 import com.example.boardgamerapp.data.local.entity.GameNightEntity
+import com.example.boardgamerapp.data.local.entity.LateNoticeEntity
 import com.example.boardgamerapp.data.local.entity.PlayerEntity
 import com.example.boardgamerapp.data.local.entity.VoteEntity
 import com.example.boardgamerapp.domain.HostRotation
 import com.example.boardgamerapp.domain.model.BoardGame
 import com.example.boardgamerapp.domain.model.GameNight
 import com.example.boardgamerapp.domain.model.GameNightStatus
+import com.example.boardgamerapp.domain.model.LateNotice
 import com.example.boardgamerapp.domain.model.Player
 import com.example.boardgamerapp.domain.model.Vote
 import java.time.LocalDateTime
@@ -43,8 +45,32 @@ class RoomGameNightRepository(
                     ?: error("Für ${boardGame.name} wurde kein Spieler gefunden.")
                 BoardGameSuggestion(boardGame.toDomain(), player)
             }
+
             .toList()
         GameNightSuggestions(gameNight.toDomain(), suggestions)
+    }
+
+    override fun getLateNotices(): Result<List<LateNotice>> = runCatching {
+        val gameNight = findUpcomingGameNight() ?: return@runCatching emptyList()
+        database.lateNoticeDao()
+            .getForGameNight(gameNight.id)
+            .map { it.toDomain() }
+    }
+
+    override fun addLateNotice(playerId: Long, minutes: Int): Result<LateNotice> = runCatching {
+        val gameNight = findUpcomingGameNight()
+            ?: error("Es gibt keinen kommenden Spieleabend.")
+        require(minutes > 0) { "Die Verspätung muss größer als 0 Minuten sein." }
+        require(database.playerDao().getById(playerId) != null) {
+            "Der ausgewählte Spieler wurde nicht gefunden."
+        }
+        val lateNotice = LateNoticeEntity(
+            playerId = playerId,
+            gameNightId = gameNight.id,
+            minutes = minutes,
+            createdAt = now(),
+        )
+        lateNotice.copy(id = database.lateNoticeDao().insert(lateNotice)).toDomain()
     }
 
     override fun addGameSuggestion(
@@ -271,6 +297,14 @@ class RoomGameNightRepository(
         BoardGame(id, name, description, suggestedByPlayerId, gameNightId)
 
     private fun VoteEntity.toDomain() = Vote(id, playerId, boardGameId, gameNightId)
+
+    private fun LateNoticeEntity.toDomain() = LateNotice(
+        id = id,
+        playerId = playerId,
+        gameNightId = gameNightId,
+        minutes = minutes,
+        createdAt = createdAt,
+    )
 
     companion object {
         fun create(context: Context): RoomGameNightRepository =

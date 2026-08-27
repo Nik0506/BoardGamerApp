@@ -9,12 +9,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,6 +35,13 @@ import com.example.boardgamerapp.ui.theme.BoardGamerAppTheme
 fun DashboardScreen(
     uiState: DashboardUiState,
     onRetry: () -> Unit,
+    onSelectPlayer: (Long) -> Unit = {},
+    onAddLateNotice: () -> Unit = {},
+    onSelectLateNoticePreset: (Int) -> Unit = {},
+    onLateNoticeCustomMinutesChange: (String) -> Unit = {},
+    onSaveLateNotice: () -> Unit = {},
+    onDismissLateNoticeEditor: () -> Unit = {},
+    onDismissMessage: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     when (uiState) {
@@ -72,7 +86,14 @@ fun DashboardScreen(
         }
 
         is DashboardUiState.Content -> DashboardContent(
-            gameNight = uiState.gameNight,
+            uiState = uiState,
+            onSelectPlayer = onSelectPlayer,
+            onAddLateNotice = onAddLateNotice,
+            onSelectLateNoticePreset = onSelectLateNoticePreset,
+            onLateNoticeCustomMinutesChange = onLateNoticeCustomMinutesChange,
+            onSaveLateNotice = onSaveLateNotice,
+            onDismissLateNoticeEditor = onDismissLateNoticeEditor,
+            onDismissMessage = onDismissMessage,
             modifier = modifier,
         )
     }
@@ -80,69 +101,249 @@ fun DashboardScreen(
 
 @Composable
 private fun DashboardContent(
-    gameNight: GameNightUiModel,
+    uiState: DashboardUiState.Content,
+    onSelectPlayer: (Long) -> Unit,
+    onAddLateNotice: () -> Unit,
+    onSelectLateNoticePreset: (Int) -> Unit,
+    onLateNoticeCustomMinutesChange: (String) -> Unit,
+    onSaveLateNotice: () -> Unit,
+    onDismissLateNoticeEditor: () -> Unit,
+    onDismissMessage: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
+    LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 20.dp, vertical = 24.dp),
+            .padding(horizontal = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(
-            text = "Board Gamer",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary,
-        )
-        Text(
-            text = "Nächster Spieleabend",
-            modifier = Modifier.padding(top = 4.dp),
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-        )
+        item {
+            Text(
+                text = "Board Gamer",
+                modifier = Modifier.padding(top = 24.dp),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = "Nächster Spieleabend",
+                modifier = Modifier.padding(top = 4.dp),
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+            )
+        }
 
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 24.dp),
-        ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                DetailRow(label = "Datum", value = gameNight.date)
-                Spacer(modifier = Modifier.height(18.dp))
-                DetailRow(label = "Uhrzeit", value = gameNight.time)
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    DetailRow(label = "Datum", value = uiState.gameNight.date)
+                    Spacer(modifier = Modifier.height(18.dp))
+                    DetailRow(label = "Uhrzeit", value = uiState.gameNight.time)
+                }
             }
         }
 
-        OutlinedCard(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 16.dp),
-        ) {
-            Column(modifier = Modifier.padding(20.dp)) {
+        item {
+            OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text(
+                        text = "Gastgeber",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Text(
+                        text = uiState.gameNight.hostName,
+                        modifier = Modifier.padding(top = 6.dp),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = uiState.gameNight.location,
+                        modifier = Modifier.padding(top = 8.dp),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                }
+            }
+        }
+
+        if (uiState.players.isNotEmpty()) {
+            item {
                 Text(
-                    text = "Gastgeber",
+                    text = "Wer meldet die Verspätung?",
                     style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
                 )
-                Text(
-                    text = gameNight.hostName,
-                    modifier = Modifier.padding(top = 6.dp),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = gameNight.location,
-                    modifier = Modifier.padding(top = 8.dp),
-                    style = MaterialTheme.typography.bodyLarge,
-                )
+                LazyRow(
+                    modifier = Modifier.padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(uiState.players, key = { it.id }) { player ->
+                        FilterChip(
+                            selected = player.id == uiState.selectedPlayerId,
+                            onClick = { onSelectPlayer(player.id) },
+                            label = { Text(player.name) },
+                        )
+                    }
+                }
             }
         }
 
-        Text(
-            text = "Spielvorschläge und Abstimmung folgen in den nächsten Iterationen.",
-            modifier = Modifier.padding(top = 24.dp),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        uiState.message?.let { message ->
+            item { DashboardMessageCard(message, false, onDismissMessage) }
+        }
+        uiState.errorMessage?.let { message ->
+            item { DashboardMessageCard(message, true, onDismissMessage) }
+        }
+
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Verspätung melden",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = "Lokale Demo: Die Meldung wird nur gespeichert und simuliert keine echte Benachrichtigung.",
+                        modifier = Modifier.padding(top = 6.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Button(
+                        onClick = onAddLateNotice,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp),
+                        enabled = uiState.selectedPlayerId != null,
+                    ) {
+                        Text("Verspätung melden")
+                    }
+                }
+            }
+        }
+
+        item {
+            Text(
+                text = "Aktuelle Meldungen",
+                modifier = Modifier.padding(top = 4.dp),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        if (uiState.lateNotices.isEmpty()) {
+            item {
+                Text(
+                    text = "Für diesen Spieleabend gibt es noch keine Verspätungsmeldungen.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            items(uiState.lateNotices, key = { it.id }) { notice ->
+                OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "${notice.playerName} kommt etwa ${notice.minutes} Minuten später.",
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                        Text(
+                            text = "Gespeichert: ${notice.createdAt}",
+                            modifier = Modifier.padding(top = 4.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+
+        item {
+            Text(
+                text = "Die Daten bleiben lokal auf diesem Gerät. Es werden keine Nachrichten an andere Spieler versendet.",
+                modifier = Modifier.padding(top = 4.dp, bottom = 24.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+
+    uiState.editor?.let { editor ->
+        LateNoticeDialog(
+            editor = editor,
+            onSelectPreset = onSelectLateNoticePreset,
+            onCustomMinutesChange = onLateNoticeCustomMinutesChange,
+            onSave = onSaveLateNotice,
+            onDismiss = onDismissLateNoticeEditor,
         )
+    }
+}
+
+@Composable
+private fun LateNoticeDialog(
+    editor: LateNoticeEditorUiState,
+    onSelectPreset: (Int) -> Unit,
+    onCustomMinutesChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Verspätung melden") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Wie viele Minuten Verspätung sollen lokal gespeichert werden?")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(10, 20, 30).forEach { minutes ->
+                        FilterChip(
+                            selected = editor.selectedPreset == minutes,
+                            onClick = { onSelectPreset(minutes) },
+                            label = { Text("$minutes Min.") },
+                        )
+                    }
+                }
+                OutlinedTextField(
+                    value = editor.customMinutes,
+                    onValueChange = onCustomMinutesChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Freie Minutenangabe") },
+                    singleLine = true,
+                )
+                editor.errorMessage?.let {
+                    Text(
+                        text = it,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onSave) { Text("Speichern") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Abbrechen") }
+        },
+    )
+}
+
+@Composable
+private fun DashboardMessageCard(
+    message: String,
+    isError: Boolean,
+    onDismiss: () -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = message,
+                modifier = Modifier.weight(1f),
+                color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+            )
+            TextButton(onClick = onDismiss) { Text("OK") }
+        }
     }
 }
 

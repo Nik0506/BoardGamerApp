@@ -286,17 +286,17 @@ Ergebnis/Demo: Ein vollständiges, lokal persistentes MVP.
 
 Aufgaben:
 
-- [ ] Schnellaktion auf dem Dashboard ergänzen
-- [ ] Auswahl für 10, 20, 30 oder freie Minuten anbieten
-- [ ] Meldung mit Spieler und Zeitpunkt speichern
-- [ ] Aktuelle Meldungen auf dem Dashboard anzeigen
-- [ ] Klar kennzeichnen, dass Meldungen im lokalen MVP nur simuliert werden
+- [x] Schnellaktion auf dem Dashboard ergänzen
+- [x] Auswahl für 10, 20, 30 oder freie Minuten anbieten
+- [x] Meldung mit Spieler und Zeitpunkt speichern
+- [x] Aktuelle Meldungen auf dem Dashboard anzeigen
+- [x] Klar kennzeichnen, dass Meldungen im lokalen MVP nur simuliert werden
 
 Akzeptanzkriterien:
 
-- Eine Meldung benötigt höchstens wenige Interaktionen.
-- Ungültige Minutenwerte werden abgewiesen.
-- Alle lokal erfassten Meldungen zum Termin sind sichtbar.
+- [x] Eine Meldung benötigt höchstens wenige Interaktionen.
+- [x] Ungültige Minutenwerte werden abgewiesen.
+- [x] Alle lokal erfassten Meldungen zum Termin sind sichtbar.
 
 Ergebnis/Demo: Die User Story ist lokal nutzbar, ohne eine echte Nachrichtenzustellung vorzutäuschen.
 
@@ -448,6 +448,8 @@ Für jede begonnene Iteration wird dieser Block kopiert und ausgefüllt:
 
 **Iteration 4 – Spieleabstimmung** wurde am 27.08.2026 abgeschlossen. Alle 33 Unit-Tests und der Debug-Build waren erfolgreich. Auf dem Emulator wurden Gleichstand, Beteiligung, hervorgehobene eigene Stimme und der Stimmenwechsel von Max zu Heat geprüft. Nach dem Wechsel wurde Heat mit zwei Stimmen als Gewinner nach oben sortiert; es wurden keine AndroidRuntime-Abstürze protokolliert.
 
-**Iteration 5 – Dauerhafte lokale Speicherung mit Room** wurde am 27.08.2026 umgesetzt. Room speichert Spieler, Spieleabende, Spielvorschläge und Stimmen; die Kombination aus Spieler und Spieleabend ist als eindeutiger Datenbankindex abgesichert. Demo-Daten werden nur beim ersten Start einer vollständig leeren Datenbank angelegt. Die Datenbank startet mit Schema-Version 1; zukünftige Änderungen werden über explizite Room-Migrationen versioniert. Die lokalen Unit- und Build-Prüfungen waren erfolgreich; instrumentierte Room-Tests sind angelegt und für die Ausführung auf einem Emulator vorgesehen.
+**Iteration 5 – Dauerhafte lokale Speicherung mit Room** wurde am 27.08.2026 umgesetzt. Room speichert Spieler, Spieleabende, Spielvorschläge und Stimmen; die Kombination aus Spieler und Spieleabend ist als eindeutiger Datenbankindex abgesichert. Demo-Daten werden nur beim ersten Start einer vollständig leeren Datenbank angelegt. Die lokalen Unit- und Build-Prüfungen waren erfolgreich; instrumentierte Room-Tests sind angelegt und für die Ausführung auf einem Emulator vorgesehen.
 
-**Nächster Schritt:** Iteration 6 – Verspätungsmeldung. Vorher sollten die Änderungen aus Iteration 5 geprüft und in einem eigenen Commit festgehalten werden.
+**Iteration 6 – Verspätungsmeldung** wurde am 27.08.2026 umgesetzt. Das Dashboard bietet eine lokale Schnellaktion mit Spielerwahl, den Minutenoptionen 10, 20, 30 sowie einer positiven freien Eingabe. Meldungen werden mit Spieler, kommendem Spieleabend und Erstellzeitpunkt in Room gespeichert und auf dem Dashboard angezeigt. Die simulierte lokale Funktion ist in der UI und README klar von echter Benachrichtigung abgegrenzt. Room verwendet Schema-Version 2 mit expliziter Migration 1→2; Unit- und instrumentierte Persistenz-/Validierungstests wurden ergänzt.
+
+**Nächster Schritt:** Iteration 7 – Abschluss und Bewertung.
