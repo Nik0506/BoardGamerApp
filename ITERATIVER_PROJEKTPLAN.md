@@ -182,12 +182,12 @@ Ergebnis/Demo: Eine navigierbare App-Hülle ohne fachliche Logik.
 
 Aufgaben:
 
-- [ ] `Player` und `GameNight` als Domain-Modelle anlegen
-- [ ] Einen In-Memory-Repository-Vertrag definieren
-- [ ] Beispieldaten für Spieler und nächsten Abend bereitstellen
-- [ ] Dashboard mit Datum, Uhrzeit, Gastgeber und Adresse gestalten
-- [ ] Lade-, Leer- und Fehlerzustand darstellen
-- [ ] `DashboardViewModel` mit unveränderlichem UI-State verwenden
+- [x] `Player` und `GameNight` als Domain-Modelle anlegen
+- [x] Einen In-Memory-Repository-Vertrag definieren
+- [x] Beispieldaten für Spieler und nächsten Abend bereitstellen
+- [x] Dashboard mit Datum, Uhrzeit, Gastgeber und Adresse gestalten
+- [x] Lade-, Leer- und Fehlerzustand darstellen
+- [x] `DashboardViewModel` mit unveränderlichem UI-State verwenden
 
 Akzeptanzkriterien:
 
@@ -203,12 +203,12 @@ Ergebnis/Demo: Die erste vollständig sichtbare User Story, zunächst mit Beispi
 
 Aufgaben:
 
-- [ ] Spielerliste anzeigen
-- [ ] Spieler lokal hinzufügen und bearbeiten
-- [ ] Gastgeberreihenfolge festlegen
-- [ ] Rotation als reine, testbare Kotlin-Funktion implementieren
-- [ ] Nächsten Termin anlegen und Gastgeber automatisch einsetzen
-- [ ] Sonderfälle testen: keine Spieler, ein Spieler, Ende der Reihenfolge
+- [x] Spielerliste anzeigen
+- [x] Spieler lokal hinzufügen und bearbeiten
+- [x] Gastgeberreihenfolge festlegen
+- [x] Rotation als reine, testbare Kotlin-Funktion implementieren
+- [x] Nächsten Termin anlegen und Gastgeber automatisch einsetzen
+- [x] Sonderfälle testen: keine Spieler, ein Spieler, Ende der Reihenfolge
 
 Akzeptanzkriterien:
 
@@ -224,11 +224,11 @@ Ergebnis/Demo: Die Gruppe kann gepflegt und der nächste Gastgeber bestimmt werd
 
 Aufgaben:
 
-- [ ] Spielvorschläge als Compose-Liste anzeigen
-- [ ] Formular oder Dialog für Name und optionale Beschreibung bauen
-- [ ] Vorschlag einem Spieler und Spieleabend zuordnen
-- [ ] Validierung und Löschen eines eigenen Vorschlags ergänzen
-- [ ] Leeren Zustand gestalten
+- [x] Spielvorschläge als Compose-Liste anzeigen
+- [x] Formular oder Dialog für Name und optionale Beschreibung bauen
+- [x] Vorschlag einem Spieler und Spieleabend zuordnen
+- [x] Validierung und Löschen eines eigenen Vorschlags ergänzen
+- [x] Leeren Zustand gestalten
 
 Akzeptanzkriterien:
 
@@ -244,12 +244,12 @@ Ergebnis/Demo: Spiele können vorgeschlagen und wieder entfernt werden.
 
 Aufgaben:
 
-- [ ] Aktiven Spieler für die lokale Demo auswählbar machen
-- [ ] Pro Spieler und Abend genau eine Stimme speichern
-- [ ] Bereits abgegebene Stimme änderbar machen
-- [ ] Stimmen zählen und sortiert darstellen
-- [ ] Gewinner beziehungsweise Gleichstand anzeigen
-- [ ] Zählung und Eindeutigkeitsregel testen
+- [x] Aktiven Spieler für die lokale Demo auswählbar machen
+- [x] Pro Spieler und Abend genau eine Stimme speichern
+- [x] Bereits abgegebene Stimme änderbar machen
+- [x] Stimmen zählen und sortiert darstellen
+- [x] Gewinner beziehungsweise Gleichstand anzeigen
+- [x] Zählung und Eindeutigkeitsregel testen
 
 Akzeptanzkriterien:
 
@@ -440,4 +440,12 @@ Für jede begonnene Iteration wird dieser Block kopiert und ausgefüllt:
 
 **Iteration 0 – Projektbasis stabilisieren** wurde am 24.08.2026 abgeschlossen und am 26.08.2026 bestätigt. Unit-Tests und Debug-Build waren erfolgreich; der Debug-Build wurde auf einem Emulator installiert und ohne Absturz kalt gestartet.
 
-**Iteration 1 – Dashboard mit Beispieldaten** wartet auf ausdrückliche Freigabe. Bis dahin werden keine Aufgaben dieser Iteration begonnen. Nach der Freigabe wird sie vollständig abgeschlossen, bevor Room oder optionale Funktionen eingeführt werden.
+**Iteration 1 – Dashboard mit Beispieldaten** wurde am 26.08.2026 abgeschlossen. Alle acht Unit-Tests und der Debug-Build waren erfolgreich. Die APK wurde auf einem Emulator installiert und kalt gestartet; Datum, Uhrzeit, Gastgeber, Adresse und Navigation wurden in der UI-Hierarchie geprüft. Es wurden keine AndroidRuntime-Abstürze protokolliert.
+
+**Iteration 2 – Spieler und Gastgeberrotation** wurde am 26.08.2026 abgeschlossen. Alle 19 Unit-Tests und der Debug-Build waren erfolgreich. Auf dem Emulator wurden Spielerliste, Änderung der Reihenfolge, Hinzufügen-Dialog und das Anlegen des Folgetermins geprüft. Die Rotation plante den 11.09.2026 bei Lea als nächste Gastgeberin; es wurden keine AndroidRuntime-Abstürze protokolliert.
+
+**Iteration 3 – Spielvorschläge** wurde am 26.08.2026 abgeschlossen. Alle 25 Unit-Tests und der Debug-Build waren erfolgreich. Auf dem Emulator wurden Vorschlagsliste, Nutzerwahl, Löschberechtigung, Eingabedialog und das unmittelbare Hinzufügen von „Azul“ geprüft. Jeder Vorschlag zeigt Urheber und Termin; es wurden keine AndroidRuntime-Abstürze protokolliert.
+
+**Iteration 4 – Spieleabstimmung** wurde am 27.08.2026 abgeschlossen. Alle 33 Unit-Tests und der Debug-Build waren erfolgreich. Auf dem Emulator wurden Gleichstand, Beteiligung, hervorgehobene eigene Stimme und der Stimmenwechsel von Max zu Heat geprüft. Nach dem Wechsel wurde Heat mit zwei Stimmen als Gewinner nach oben sortiert; es wurden keine AndroidRuntime-Abstürze protokolliert.
+
+**Iteration 5 – Dauerhafte lokale Speicherung mit Room** wartet auf ausdrückliche Freigabe. Bis dahin werden keine Aufgaben dieser Iteration begonnen.
