@@ -265,18 +265,18 @@ Ergebnis/Demo: Der zentrale MVP-Ablauf von Vorschlag bis Entscheidung funktionie
 
 Aufgaben:
 
-- [ ] Room-Abhängigkeiten im Version Catalog ergänzen
-- [ ] Entities, DAOs und `AppDatabase` implementieren
-- [ ] Beziehungen und eindeutige Indizes definieren
-- [ ] In-Memory-Repository durch Room-Repository ersetzen
-- [ ] Seed-Daten nur für Debug/Demo kontrolliert bereitstellen
-- [ ] DAO- und Migrationstests anlegen
+- [x] Room-Abhängigkeiten im Version Catalog ergänzen
+- [x] Entities, DAOs und `AppDatabase` implementieren
+- [x] Beziehungen und eindeutige Indizes definieren
+- [x] In-Memory-Repository durch Room-Repository ersetzen
+- [x] Seed-Daten nur für Debug/Demo kontrolliert bereitstellen
+- [x] DAO- und Migrationstests anlegen
 
 Akzeptanzkriterien:
 
-- Spieler, Termine, Vorschläge und Stimmen bleiben nach einem Neustart erhalten.
-- Die Datenbank verhindert eine zweite Stimme desselben Spielers für denselben Abend.
-- Für Schemaänderungen besteht eine dokumentierte Migrationsstrategie.
+- [x] Spieler, Termine, Vorschläge und Stimmen bleiben nach einem Neustart erhalten.
+- [x] Die Datenbank verhindert eine zweite Stimme desselben Spielers für denselben Abend.
+- [x] Für Schemaänderungen besteht eine dokumentierte Migrationsstrategie.
 
 Ergebnis/Demo: Ein vollständiges, lokal persistentes MVP.
 
@@ -448,4 +448,6 @@ Für jede begonnene Iteration wird dieser Block kopiert und ausgefüllt:
 
 **Iteration 4 – Spieleabstimmung** wurde am 27.08.2026 abgeschlossen. Alle 33 Unit-Tests und der Debug-Build waren erfolgreich. Auf dem Emulator wurden Gleichstand, Beteiligung, hervorgehobene eigene Stimme und der Stimmenwechsel von Max zu Heat geprüft. Nach dem Wechsel wurde Heat mit zwei Stimmen als Gewinner nach oben sortiert; es wurden keine AndroidRuntime-Abstürze protokolliert.
 
-**Iteration 5 – Dauerhafte lokale Speicherung mit Room** wartet auf ausdrückliche Freigabe. Bis dahin werden keine Aufgaben dieser Iteration begonnen.
+**Iteration 5 – Dauerhafte lokale Speicherung mit Room** wurde am 27.08.2026 umgesetzt. Room speichert Spieler, Spieleabende, Spielvorschläge und Stimmen; die Kombination aus Spieler und Spieleabend ist als eindeutiger Datenbankindex abgesichert. Demo-Daten werden nur beim ersten Start einer vollständig leeren Datenbank angelegt. Die Datenbank startet mit Schema-Version 1; zukünftige Änderungen werden über explizite Room-Migrationen versioniert. Die lokalen Unit- und Build-Prüfungen waren erfolgreich; instrumentierte Room-Tests sind angelegt und für die Ausführung auf einem Emulator vorgesehen.
+
+**Nächster Schritt:** Iteration 6 – Verspätungsmeldung. Vorher sollten die Änderungen aus Iteration 5 geprüft und in einem eigenen Commit festgehalten werden.
