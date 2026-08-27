@@ -20,6 +20,8 @@ import com.example.boardgamerapp.data.repository.MockGameNightRepository
 import com.example.boardgamerapp.ui.navigation.AppDestination
 import com.example.boardgamerapp.ui.dashboard.DashboardScreen
 import com.example.boardgamerapp.ui.dashboard.DashboardViewModel
+import com.example.boardgamerapp.ui.profile.ProfileScreen
+import com.example.boardgamerapp.ui.profile.ProfileViewModel
 import com.example.boardgamerapp.ui.screen.PlaceholderScreen
 import com.example.boardgamerapp.ui.theme.BoardGamerAppTheme
 
@@ -31,6 +33,9 @@ fun BoardGamerApp() {
     val repository = remember { MockGameNightRepository() }
     val dashboardViewModel: DashboardViewModel = viewModel(
         factory = DashboardViewModel.factory(repository),
+    )
+    val profileViewModel: ProfileViewModel = viewModel(
+        factory = ProfileViewModel.factory(repository),
     )
 
     NavigationSuiteScaffold(
@@ -54,6 +59,12 @@ fun BoardGamerApp() {
             if (currentDestination == AppDestination.GAME_NIGHT) {
                 DashboardScreen(
                     viewModel = dashboardViewModel,
+                    modifier = Modifier.padding(innerPadding),
+                )
+            } else if (currentDestination == AppDestination.PROFILE) {
+                ProfileScreen(
+                    viewModel = profileViewModel,
+                    onGameNightPlanned = dashboardViewModel::load,
                     modifier = Modifier.padding(innerPadding),
                 )
             } else {

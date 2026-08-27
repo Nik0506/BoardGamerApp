@@ -7,4 +7,8 @@ interface GameNightRepository {
     suspend fun getPlayers(): List<Player>
 
     suspend fun getNextGameNight(): GameNight?
+
+    suspend fun savePlayer(player: Player)
+
+    suspend fun planNextGameNight(): GameNight?
 }
