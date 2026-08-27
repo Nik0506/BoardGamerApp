@@ -7,7 +7,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -17,6 +20,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.boardgamerapp.data.repository.InMemoryGameNightRepository
+import com.example.boardgamerapp.data.repository.RoomGameNightRepository
 import com.example.boardgamerapp.ui.dashboard.DashboardScreen
 import com.example.boardgamerapp.ui.dashboard.DashboardViewModel
 import com.example.boardgamerapp.ui.games.GamesScreen
@@ -28,7 +32,11 @@ import com.example.boardgamerapp.ui.theme.BoardGamerAppTheme
 
 @Composable
 fun BoardGamerApp() {
-    val repository = remember { InMemoryGameNightRepository() }
+    val context = LocalContext.current
+    val isPreview = LocalInspectionMode.current
+    val repository = remember(context, isPreview) {
+        if (isPreview) InMemoryGameNightRepository() else RoomGameNightRepository.create(context)
+    }
     val dashboardViewModel: DashboardViewModel = viewModel(
         factory = DashboardViewModel.factory(repository),
     )
