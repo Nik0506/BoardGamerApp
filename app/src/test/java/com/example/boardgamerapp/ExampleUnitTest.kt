@@ -7,9 +7,9 @@ import org.junit.Test
 
 class AppDestinationTest {
     @Test
-    fun `navigation contains the three iteration zero destinations`() {
+    fun `navigation contains all current destinations`() {
         assertEquals(
-            listOf("Termin", "Spiele", "Profil"),
+            listOf("Termin", "Spiele", "Bewertung", "Profil"),
             AppDestination.entries.map { it.label },
         )
     }

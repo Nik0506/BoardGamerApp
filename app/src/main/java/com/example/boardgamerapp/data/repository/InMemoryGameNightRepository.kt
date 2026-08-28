@@ -6,6 +6,7 @@ import com.example.boardgamerapp.domain.model.GameNight
 import com.example.boardgamerapp.domain.model.GameNightStatus
 import com.example.boardgamerapp.domain.model.LateNotice
 import com.example.boardgamerapp.domain.model.Player
+import com.example.boardgamerapp.domain.model.Review
 import com.example.boardgamerapp.domain.model.Vote
 import java.time.LocalDateTime
 
@@ -15,6 +16,7 @@ class InMemoryGameNightRepository(
     boardGames: List<BoardGame> = sampleBoardGames,
     votes: List<Vote> = sampleVotes,
     lateNotices: List<LateNotice> = emptyList(),
+    reviews: List<Review> = emptyList(),
     private val now: () -> LocalDateTime = LocalDateTime::now,
 ) : BoardGamerRepository {
 
@@ -23,6 +25,7 @@ class InMemoryGameNightRepository(
     private val boardGames = boardGames.toMutableList()
     private val votes = votes.toMutableList()
     private val lateNotices = lateNotices.toMutableList()
+    private val reviews = reviews.toMutableList()
 
     override fun getUpcomingGameNight(): Result<UpcomingGameNight?> = runCatching {
         val nextGameNight = findUpcomingGameNight() ?: return@runCatching null
@@ -229,6 +232,55 @@ class InMemoryGameNightRepository(
         UpcomingGameNight(gameNight = gameNight, host = host)
     }
 
+    override fun getReviewSnapshot(): Result<ReviewSnapshot?> = runCatching {
+        val gameNight = gameNights.maxByOrNull { it.startsAt } ?: return@runCatching null
+        val host = players.firstOrNull { it.id == gameNight.hostId }
+            ?: error("Für den Spieleabend wurde kein Gastgeber gefunden.")
+        val gameNightReviews = reviews.filter { it.gameNightId == gameNight.id }
+        ReviewSnapshot(gameNight, host, gameNightReviews, gameNightReviews.toAverages())
+    }
+
+    override fun finishGameNight(gameNightId: Long): Result<GameNight> = runCatching {
+        val index = gameNights.indexOfFirst { it.id == gameNightId }
+        require(index >= 0) { "Der Spieleabend wurde nicht gefunden." }
+        require(gameNights[index].status != GameNightStatus.FINISHED) {
+            "Der Spieleabend ist bereits abgeschlossen."
+        }
+        gameNights[index] = gameNights[index].copy(status = GameNightStatus.FINISHED)
+        gameNights[index]
+    }
+
+    override fun submitReview(
+        playerId: Long,
+        gameNightId: Long,
+        hostRating: Int,
+        foodRating: Int,
+        eveningRating: Int,
+        comment: String,
+    ): Result<Review> = runCatching {
+        val gameNight = gameNights.firstOrNull { it.id == gameNightId }
+            ?: error("Der Spieleabend wurde nicht gefunden.")
+        require(gameNight.status == GameNightStatus.FINISHED) {
+            "Nur abgeschlossene Spieleabende können bewertet werden."
+        }
+        require(players.any { it.id == playerId }) { "Der ausgewählte Spieler wurde nicht gefunden." }
+        require(reviews.none { it.playerId == playerId && it.gameNightId == gameNightId }) {
+            "Dieser Spieler hat den Spieleabend bereits bewertet."
+        }
+        require(listOf(hostRating, foodRating, eveningRating).all { it in 1..5 }) {
+            "Alle Bewertungen müssen zwischen 1 und 5 liegen."
+        }
+        Review(
+            id = (reviews.maxOfOrNull { it.id } ?: 0L) + 1,
+            playerId = playerId,
+            gameNightId = gameNightId,
+            hostRating = hostRating,
+            foodRating = foodRating,
+            eveningRating = eveningRating,
+            comment = comment.trim(),
+        ).also(reviews::add)
+    }
+
     private fun findUpcomingGameNight(): GameNight? = gameNights
         .asSequence()
         .filter { it.status == GameNightStatus.PLANNED }
@@ -239,6 +291,14 @@ class InMemoryGameNightRepository(
         val value = trim()
         require(value.isNotEmpty()) { "$fieldName darf nicht leer sein." }
         return value
+    }
+
+    private fun List<Review>.toAverages(): ReviewAverages? = takeIf { it.isNotEmpty() }?.let {
+        ReviewAverages(
+            host = it.map(Review::hostRating).average(),
+            food = it.map(Review::foodRating).average(),
+            evening = it.map(Review::eveningRating).average(),
+        )
     }
 
     companion object {

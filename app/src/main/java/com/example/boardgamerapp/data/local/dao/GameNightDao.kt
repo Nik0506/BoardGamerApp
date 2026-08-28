@@ -14,6 +14,9 @@ interface GameNightDao {
     @Query("SELECT COUNT(*) FROM game_nights")
     fun count(): Int
 
+    @Query("SELECT * FROM game_nights WHERE id = :id")
+    fun getById(id: Long): GameNightEntity?
+
     @Insert
     fun insert(gameNight: GameNightEntity): Long
 

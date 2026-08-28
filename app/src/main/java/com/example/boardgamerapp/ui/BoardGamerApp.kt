@@ -7,15 +7,14 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -28,6 +27,8 @@ import com.example.boardgamerapp.ui.games.GamesViewModel
 import com.example.boardgamerapp.ui.navigation.AppDestination
 import com.example.boardgamerapp.ui.players.PlayersScreen
 import com.example.boardgamerapp.ui.players.PlayersViewModel
+import com.example.boardgamerapp.ui.review.ReviewScreen
+import com.example.boardgamerapp.ui.review.ReviewViewModel
 import com.example.boardgamerapp.ui.theme.BoardGamerAppTheme
 
 @Composable
@@ -45,6 +46,9 @@ fun BoardGamerApp() {
     )
     val gamesViewModel: GamesViewModel = viewModel(
         factory = GamesViewModel.factory(repository, repository, repository),
+    )
+    val reviewViewModel: ReviewViewModel = viewModel(
+        factory = ReviewViewModel.factory(repository),
     )
     var currentDestination by rememberSaveable {
         mutableStateOf(AppDestination.GAME_NIGHT)
@@ -68,6 +72,7 @@ fun BoardGamerApp() {
                             AppDestination.GAME_NIGHT -> dashboardViewModel.loadGameNight()
                             AppDestination.PROFILE -> playersViewModel.loadPlayers()
                             AppDestination.GAMES -> gamesViewModel.loadGames()
+                            AppDestination.REVIEW -> reviewViewModel.load()
                         }
                     },
                 )
@@ -114,6 +119,22 @@ fun BoardGamerApp() {
                     onSaveSuggestion = gamesViewModel::saveSuggestion,
                     onDismissEditor = gamesViewModel::dismissEditor,
                     onDismissMessage = gamesViewModel::clearMessage,
+                    modifier = Modifier.padding(innerPadding),
+                )
+
+                AppDestination.REVIEW -> ReviewScreen(
+                    uiState = reviewViewModel.uiState,
+                    onRetry = reviewViewModel::load,
+                    onFinishGameNight = reviewViewModel::finishGameNight,
+                    onSelectPlayer = reviewViewModel::selectPlayer,
+                    onBeginReview = reviewViewModel::beginReview,
+                    onHostRating = reviewViewModel::setHostRating,
+                    onFoodRating = reviewViewModel::setFoodRating,
+                    onEveningRating = reviewViewModel::setEveningRating,
+                    onCommentChange = reviewViewModel::updateComment,
+                    onSaveReview = reviewViewModel::saveReview,
+                    onDismissEditor = reviewViewModel::dismissEditor,
+                    onDismissMessage = reviewViewModel::clearMessage,
                     modifier = Modifier.padding(innerPadding),
                 )
             }

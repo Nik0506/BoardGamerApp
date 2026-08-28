@@ -6,6 +6,7 @@ import com.example.boardgamerapp.data.local.entity.BoardGameEntity
 import com.example.boardgamerapp.data.local.entity.GameNightEntity
 import com.example.boardgamerapp.data.local.entity.LateNoticeEntity
 import com.example.boardgamerapp.data.local.entity.PlayerEntity
+import com.example.boardgamerapp.data.local.entity.ReviewEntity
 import com.example.boardgamerapp.data.local.entity.VoteEntity
 import com.example.boardgamerapp.domain.HostRotation
 import com.example.boardgamerapp.domain.model.BoardGame
@@ -13,6 +14,7 @@ import com.example.boardgamerapp.domain.model.GameNight
 import com.example.boardgamerapp.domain.model.GameNightStatus
 import com.example.boardgamerapp.domain.model.LateNotice
 import com.example.boardgamerapp.domain.model.Player
+import com.example.boardgamerapp.domain.model.Review
 import com.example.boardgamerapp.domain.model.Vote
 import java.time.LocalDateTime
 
@@ -220,6 +222,56 @@ class RoomGameNightRepository(
         UpcomingGameNight(saved, host)
     }
 
+    override fun getReviewSnapshot(): Result<ReviewSnapshot?> = runCatching {
+        val gameNight = database.gameNightDao().getAll().maxByOrNull { it.startsAt }
+            ?: return@runCatching null
+        val host = database.playerDao().getById(gameNight.hostId)?.toDomain()
+            ?: error("Für den Spieleabend wurde kein Gastgeber gefunden.")
+        val reviews = database.reviewDao().getForGameNight(gameNight.id).map { it.toDomain() }
+        ReviewSnapshot(gameNight.toDomain(), host, reviews, reviews.toAverages())
+    }
+
+    override fun finishGameNight(gameNightId: Long): Result<GameNight> = runCatching {
+        val gameNight = database.gameNightDao().getById(gameNightId)
+            ?: error("Der Spieleabend wurde nicht gefunden.")
+        require(gameNight.status != GameNightStatus.FINISHED) {
+            "Der Spieleabend ist bereits abgeschlossen."
+        }
+        val finished = gameNight.copy(status = GameNightStatus.FINISHED)
+        database.gameNightDao().update(finished)
+        finished.toDomain()
+    }
+
+    override fun submitReview(
+        playerId: Long,
+        gameNightId: Long,
+        hostRating: Int,
+        foodRating: Int,
+        eveningRating: Int,
+        comment: String,
+    ): Result<Review> = runCatching {
+        val gameNight = database.gameNightDao().getById(gameNightId)
+            ?: error("Der Spieleabend wurde nicht gefunden.")
+        require(gameNight.status == GameNightStatus.FINISHED) {
+            "Nur abgeschlossene Spieleabende können bewertet werden."
+        }
+        require(database.playerDao().getById(playerId) != null) {
+            "Der ausgewählte Spieler wurde nicht gefunden."
+        }
+        require(listOf(hostRating, foodRating, eveningRating).all { it in 1..5 }) {
+            "Alle Bewertungen müssen zwischen 1 und 5 liegen."
+        }
+        val review = ReviewEntity(
+            playerId = playerId,
+            gameNightId = gameNightId,
+            hostRating = hostRating,
+            foodRating = foodRating,
+            eveningRating = eveningRating,
+            comment = comment.trim(),
+        )
+        review.copy(id = database.reviewDao().insert(review)).toDomain()
+    }
+
     private fun findUpcomingGameNight(): GameNightEntity? = database.gameNightDao()
         .getAll()
         .asSequence()
@@ -305,6 +357,18 @@ class RoomGameNightRepository(
         minutes = minutes,
         createdAt = createdAt,
     )
+
+    private fun ReviewEntity.toDomain() = Review(
+        id, playerId, gameNightId, hostRating, foodRating, eveningRating, comment,
+    )
+
+    private fun List<Review>.toAverages(): ReviewAverages? = takeIf { it.isNotEmpty() }?.let {
+        ReviewAverages(
+            host = it.map(Review::hostRating).average(),
+            food = it.map(Review::foodRating).average(),
+            evening = it.map(Review::eveningRating).average(),
+        )
+    }
 
     companion object {
         fun create(context: Context): RoomGameNightRepository =

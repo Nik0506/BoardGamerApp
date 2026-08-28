@@ -37,7 +37,7 @@ Zunächst arbeitet die App vollständig lokal auf einem Gerät. Firebase oder ei
 - [ ] Pro Spieler genau eine Stimme abgeben oder ändern
 - [ ] Abstimmungsergebnis und Gewinner bestimmen
 - [ ] Eine Verspätungsmeldung lokal erfassen und anzeigen
-- [ ] Einen abgeschlossenen Abend bewerten
+- [x] Einen abgeschlossenen Abend bewerten
 - [ ] Daten nach einem App-Neustart erhalten
 
 ### Soll
@@ -306,11 +306,11 @@ Ergebnis/Demo: Die User Story ist lokal nutzbar, ohne eine echte Nachrichtenzust
 
 Aufgaben:
 
-- [ ] Statuswechsel zu `FINISHED` ermöglichen
-- [ ] Bewertung für Gastgeber, Essen und Gesamtabend anbieten
-- [ ] Optionales Kommentarfeld ergänzen
-- [ ] Doppelte Bewertung pro Spieler und Abend verhindern
-- [ ] Durchschnittswerte anzeigen
+- [x] Statuswechsel zu `FINISHED` ermöglichen
+- [x] Bewertung für Gastgeber, Essen und Gesamtabend anbieten
+- [x] Optionales Kommentarfeld ergänzen
+- [x] Doppelte Bewertung pro Spieler und Abend verhindern
+- [x] Durchschnittswerte anzeigen
 
 Akzeptanzkriterien:
 
@@ -401,10 +401,10 @@ Instrumentierte Tests werden zusätzlich auf einem Emulator oder Gerät ausgefü
 ### Vor Umsetzung zu entscheiden
 
 - [ ] Wie wird in der lokalen Version der aktive Spieler gewählt?
-- [ ] Darf nur der Gastgeber einen Abend abschließen?
+- [x] Darf nur der Gastgeber einen Abend abschließen? Lokales MVP: Nein, jedes Gruppenmitglied darf abschließen.
 - [ ] Darf eine Stimme bis zum Abschluss beliebig geändert werden?
 - [ ] Wie wird bei Gleichstand endgültig entschieden?
-- [ ] Sollen Bewertungen anonym oder namentlich sein?
+- [x] Sollen Bewertungen anonym oder namentlich sein? Lokal wird die Bewertung einem Spieler zugeordnet.
 
 ### Hauptrisiken
 
@@ -452,4 +452,6 @@ Für jede begonnene Iteration wird dieser Block kopiert und ausgefüllt:
 
 **Iteration 6 – Verspätungsmeldung** wurde am 27.08.2026 umgesetzt. Das Dashboard bietet eine lokale Schnellaktion mit Spielerwahl, den Minutenoptionen 10, 20, 30 sowie einer positiven freien Eingabe. Meldungen werden mit Spieler, kommendem Spieleabend und Erstellzeitpunkt in Room gespeichert und auf dem Dashboard angezeigt. Die simulierte lokale Funktion ist in der UI und README klar von echter Benachrichtigung abgegrenzt. Room verwendet Schema-Version 2 mit expliziter Migration 1→2; Unit- und instrumentierte Persistenz-/Validierungstests wurden ergänzt.
 
-**Nächster Schritt:** Iteration 7 – Abschluss und Bewertung.
+**Iteration 7 – Abschluss und Bewertung** wurde am 28.08.2026 abgeschlossen. Ein eigener Bewertungsbereich ermöglicht den Statuswechsel zu `FINISHED` und anschließend genau eine namentlich zugeordnete Bewertung pro Spieler und Abend. Gastgeber, Essen und Gesamtabend werden mit 1 bis 5 Punkten bewertet; Kommentare sind optional und Durchschnittswerte werden unmittelbar angezeigt. Room verwendet Schema-Version 3 mit expliziter Migration 2→3 und einem eindeutigen Index für Spieler und Spieleabend. Unit-Tests, Debug-Build und acht instrumentierte Tests auf dem Emulator waren erfolgreich; die Migration einer vorhandenen Installation und der neue Navigationsbereich wurden dort ebenfalls geprüft.
+
+**Nächster Schritt:** Iteration 8 – MVP-Qualität und Abgabe.

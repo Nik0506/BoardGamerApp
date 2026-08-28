@@ -4,7 +4,7 @@ Eine Android-App zur Organisation regelmäßiger Brettspielabende. Das Projekt w
 
 ## Aktueller Funktionsumfang
 
-- Adaptive Navigation zu Termin, Spielen und Profil
+- Adaptive Navigation zu Termin, Spielen, Bewertung und Profil
 - Dashboard für den nächsten Spieleabend
 - Lade-, Leer-, Inhalts- und Fehlerzustand
 - Spieler hinzufügen und bearbeiten
@@ -21,11 +21,15 @@ Eine Android-App zur Organisation regelmäßiger Brettspielabende. Das Projekt w
 - Persistente Room-Datenbank für Spieler, Spieleabende, Spielvorschläge und Stimmen
 - Verspätung für den kommenden Spieleabend mit 10, 20, 30 oder freien Minuten lokal melden
 - Aktuelle, dem Spieler und Termin zugeordnete Verspätungsmeldungen auf dem Dashboard anzeigen
+- Spieleabend im eigenen Bewertungsbereich abschließen
+- Gastgeber, Essen und Gesamtabend mit 1 bis 5 Punkten bewerten
+- Optionalen Kommentar und unmittelbar berechnete Durchschnittswerte anzeigen
+- Pro Spieler und Spieleabend höchstens eine Bewertung speichern
 - Kontrollierte Demo-Daten beim ersten Start einer leeren Datenbank
 - Gemeinsames, austauschbares Repository mit Room als produktiver Datenquelle
 - ViewModel-basierte Zustandsverwaltung
 
-Die Kernabläufe von Terminplanung, Gastgeberrotation, Spielvorschlägen, Abstimmung und lokaler Verspätungsmeldung funktionieren. Auf dem Dashboard kann ein aktives Gruppenmitglied ausgewählt und eine Meldung in wenigen Schritten gespeichert werden. Diese Meldungen sind im lokalen MVP ausdrücklich nur gespeicherte/simulierte Einträge; es werden keine Android- oder Push-Benachrichtigungen versendet. Beim ersten Start wird eine leere Datenbank kontrolliert mit Demo-Daten befüllt; vorhandene Daten werden nicht überschrieben. Die Datenbank verwendet Schema-Version 2. Die Tabelle `late_notices` wird über die explizite Migration `1 -> 2` ergänzt; es gibt keine destructive fallback migration.
+Die Kernabläufe von Terminplanung, Gastgeberrotation, Spielvorschlägen, Abstimmung, lokaler Verspätungsmeldung und Bewertung funktionieren. Ein Spieleabend kann lokal von jedem Gruppenmitglied abgeschlossen und danach namentlich bewertet werden. Beim ersten Start wird eine leere Datenbank kontrolliert mit Demo-Daten befüllt; vorhandene Daten werden nicht überschrieben. Die Datenbank verwendet Schema-Version 3. `late_notices` und `reviews` werden über die expliziten Migrationen `1 -> 2` und `2 -> 3` ergänzt; es gibt keine destructive fallback migration.
 
 ## Technik
 
@@ -57,7 +61,7 @@ Compose UI → ViewModel → Repository → Room / SQLite
                                       ↘ In-Memory (Preview/Test)
 ```
 
-Die Domain-Modelle bleiben unabhängig von Room. Datenbank-Entities werden im Repository in Domain-Modelle umgewandelt. Stimmen besitzen einen eindeutigen Index aus Spieler und Spieleabend, sodass pro Spieler und Termin nur eine Stimme gespeichert werden kann. Verspätungsmeldungen besitzen eigene Indizes für Spieler, Spieleabend und Erstellzeitpunkt und werden bei gelöschten Spielern oder Terminen mit entfernt.
+Die Domain-Modelle bleiben unabhängig von Room. Datenbank-Entities werden im Repository in Domain-Modelle umgewandelt. Stimmen und Bewertungen besitzen jeweils einen eindeutigen Index aus Spieler und Spieleabend. Bewertungen sind nur nach dem Statuswechsel zu `FINISHED` zulässig und müssen in allen drei Pflichtkategorien zwischen 1 und 5 liegen. Verspätungsmeldungen besitzen eigene Indizes für Spieler, Spieleabend und Erstellzeitpunkt und werden bei gelöschten Spielern oder Terminen mit entfernt.
 
 ## Planung
 

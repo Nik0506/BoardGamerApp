@@ -7,6 +7,7 @@ import com.example.boardgamerapp.data.local.AppDatabase
 import com.example.boardgamerapp.data.local.entity.BoardGameEntity
 import com.example.boardgamerapp.data.local.entity.GameNightEntity
 import com.example.boardgamerapp.data.local.entity.PlayerEntity
+import com.example.boardgamerapp.data.local.entity.ReviewEntity
 import com.example.boardgamerapp.data.local.entity.VoteEntity
 import com.example.boardgamerapp.data.repository.RoomGameNightRepository
 import com.example.boardgamerapp.domain.model.GameNightStatus
@@ -115,9 +116,47 @@ class RoomGameNightRepositoryTest {
     }
 
     @Test
-    fun schemaHasVersionTwoAndAllIterationSixTables() {
+    fun reviewUniqueIndexRejectsSecondReviewForSamePlayerAndNight() {
+        database.playerDao().insert(PlayerEntity(id = 1, name = "Max", address = "Adresse", hostOrder = 1))
+        database.gameNightDao().insert(
+            GameNightEntity(
+                id = 1,
+                startsAt = LocalDateTime.of(2026, 8, 28, 19, 0),
+                hostId = 1,
+                location = "Adresse",
+                status = GameNightStatus.FINISHED,
+            ),
+        )
+        val review = ReviewEntity(
+            playerId = 1, gameNightId = 1, hostRating = 5, foodRating = 4,
+            eveningRating = 5, comment = "Gut",
+        )
+        database.reviewDao().insert(review)
+
+        assertThrows(SQLiteConstraintException::class.java) {
+            database.reviewDao().insert(review.copy(comment = "Doppelt"))
+        }
+    }
+
+    @Test
+    fun roomRepositoryFinishesNightAndPersistsReview() {
+        val repository = RoomGameNightRepository(database, now = { LocalDateTime.of(2026, 8, 27, 12, 0) })
+        val player = repository.addPlayer("Max", "Adresse").getOrThrow()
+        val night = repository.createNextGameNight().getOrThrow().gameNight
+
+        repository.finishGameNight(night.id).getOrThrow()
+        repository.submitReview(player.id, night.id, 5, 4, 3, "Schön").getOrThrow()
+
+        val snapshot = repository.getReviewSnapshot().getOrThrow()
+        assertEquals(GameNightStatus.FINISHED, snapshot?.gameNight?.status)
+        assertEquals(1, snapshot?.reviews?.size)
+        assertEquals(5.0, snapshot?.averages?.host ?: 0.0, 0.0)
+    }
+
+    @Test
+    fun schemaHasVersionThreeAndAllIterationSevenTables() {
         val sqliteDatabase = database.openHelper.writableDatabase
-        assertEquals(2, sqliteDatabase.version)
+        assertEquals(3, sqliteDatabase.version)
         val tables = sqliteDatabase.query(
             "SELECT name FROM sqlite_master WHERE type = 'table'",
         ).use { cursor ->
@@ -132,5 +171,6 @@ class RoomGameNightRepositoryTest {
         assertTrue("board_games" in tables)
         assertTrue("votes" in tables)
         assertTrue("late_notices" in tables)
+        assertTrue("reviews" in tables)
     }
 }
