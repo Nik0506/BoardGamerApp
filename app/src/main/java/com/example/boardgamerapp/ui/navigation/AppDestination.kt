@@ -19,13 +19,13 @@ enum class AppDestination(
         label = "Spiele",
         title = "Spiele",
         description = "Hier könnt ihr bald Spiele vorschlagen und abstimmen.",
-        icon = R.drawable.ic_favorite,
+        icon = R.drawable.ic_dice,
     ),
     FOOD(
         label = "Essen",
         title = "Essensabstimmung",
         description = "Stimmt über die Essensrichtung für den Abend ab.",
-        icon = R.drawable.ic_favorite,
+        icon = R.drawable.ic_restaurant,
     ),
     REVIEW(
         label = "Bewertung",
