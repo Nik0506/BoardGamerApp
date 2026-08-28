@@ -43,14 +43,35 @@ Die Kernabläufe von Terminplanung, Gastgeberrotation, Spielvorschlägen, Abstim
 
 ## Projekt bauen und testen
 
-Für die Kommandozeile muss `JAVA_HOME` auf ein kompatibles JDK zeigen. Das mit Android Studio gebündelte JDK kann verwendet werden.
+### Voraussetzungen
+
+- Android Studio mit Android SDK 36.1
+- JDK 21; das mit Android Studio gebündelte JDK kann verwendet werden
+- ein Emulator oder Gerät ab Android 7.0/API 24 für instrumentierte Tests
+
+Projektordner in Android Studio öffnen und **File → Sync Project with Gradle Files** ausführen. Für die Kommandozeile muss `JAVA_HOME` auf ein kompatibles JDK zeigen.
 
 ```bash
 ./gradlew test
 ./gradlew assembleDebug
+./gradlew lintDebug
+./gradlew connectedDebugAndroidTest
+./gradlew assembleRelease
 ```
 
 Die Debug-APK wird unter `app/build/outputs/apk/debug/app-debug.apk` erzeugt.
+
+## Reproduzierbarer Demo-Ablauf
+
+Bei einer leeren Debug-Datenbank werden Max und Lea, der Spieleabend am 28.08.2026 sowie Catan und Heat angelegt. Vor einer Vorführung kann die App über die Android-Systemeinstellungen zurückgesetzt werden.
+
+1. Unter **Termin** Datum, Gastgeber und lokale Verspätungsmeldung zeigen.
+2. Unter **Profil** einen Spieler ergänzen und die Gastgeberreihenfolge ändern.
+3. Unter **Spiele** den aktiven Spieler wechseln, einen Vorschlag ergänzen und abstimmen.
+4. Unter **Bewertung** den Spieleabend abschließen.
+5. Für Max und Lea unterschiedliche Bewertungen samt optionalem Kommentar speichern.
+6. Die angezeigten Durchschnittswerte prüfen, die App vollständig schließen und erneut öffnen.
+7. Kontrollieren, dass Spieler, Stimmen, Meldungen, Abschlussstatus und Bewertungen erhalten geblieben sind.
 
 ## Architektur
 
@@ -62,6 +83,16 @@ Compose UI → ViewModel → Repository → Room / SQLite
 ```
 
 Die Domain-Modelle bleiben unabhängig von Room. Datenbank-Entities werden im Repository in Domain-Modelle umgewandelt. Stimmen und Bewertungen besitzen jeweils einen eindeutigen Index aus Spieler und Spieleabend. Bewertungen sind nur nach dem Statuswechsel zu `FINISHED` zulässig und müssen in allen drei Pflichtkategorien zwischen 1 und 5 liegen. Verspätungsmeldungen besitzen eigene Indizes für Spieler, Spieleabend und Erstellzeitpunkt und werden bei gelöschten Spielern oder Terminen mit entfernt.
+
+## Grenzen des lokalen MVP
+
+- Alle Daten liegen ausschließlich auf einem Gerät; es gibt noch keine Konten, Gruppen oder Synchronisation.
+- Verspätungsmeldungen werden nur lokal gespeichert und nicht an andere Personen gesendet.
+- Der aktive Spieler wird in der Demo manuell ausgewählt; es gibt keine Anmeldung.
+- Jedes Gruppenmitglied kann einen Abend lokal abschließen.
+- Bewertungen sind dem ausgewählten Spieler zugeordnet und nicht anonym.
+- Demo-Daten werden nur in einer vollständig leeren Debug-Datenbank angelegt.
+- Der Release-Build ist technisch erzeugbar, benötigt für eine Veröffentlichung aber noch einen produktiven Signierschlüssel.
 
 ## Planung
 

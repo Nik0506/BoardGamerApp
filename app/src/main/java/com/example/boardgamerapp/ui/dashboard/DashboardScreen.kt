@@ -35,6 +35,7 @@ import com.example.boardgamerapp.ui.theme.BoardGamerAppTheme
 fun DashboardScreen(
     uiState: DashboardUiState,
     onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
     onSelectPlayer: (Long) -> Unit = {},
     onAddLateNotice: () -> Unit = {},
     onSelectLateNoticePreset: (Int) -> Unit = {},
@@ -42,7 +43,6 @@ fun DashboardScreen(
     onSaveLateNotice: () -> Unit = {},
     onDismissLateNoticeEditor: () -> Unit = {},
     onDismissMessage: () -> Unit = {},
-    modifier: Modifier = Modifier,
 ) {
     when (uiState) {
         DashboardUiState.Loading -> CenteredMessage(modifier = modifier) {

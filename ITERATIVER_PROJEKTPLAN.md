@@ -327,13 +327,13 @@ Ergebnis/Demo: Der komplette Lebenszyklus eines Spieleabends ist abgebildet.
 
 Aufgaben:
 
-- [ ] Eingabevalidierung und Fehlermeldungen vereinheitlichen
-- [ ] Accessibility prüfen: Beschreibungen, Kontrast, Touch-Ziele, Schriftgrößen
-- [ ] Kleine und große Displays sowie Hoch-/Querformat prüfen
-- [ ] Tests für kritische Abläufe vervollständigen
-- [ ] Demo-Daten und einen reproduzierbaren Vorführablauf vorbereiten
-- [ ] README um Setup, Architektur, Funktionen und Grenzen ergänzen
-- [ ] Release-Build erzeugen
+- [x] Eingabevalidierung und Fehlermeldungen vereinheitlichen
+- [x] Accessibility prüfen: Beschreibungen, Kontrast, Touch-Ziele, Schriftgrößen
+- [x] Kleine und große Displays sowie Hoch-/Querformat prüfen
+- [x] Tests für kritische Abläufe vervollständigen
+- [x] Demo-Daten und einen reproduzierbaren Vorführablauf vorbereiten
+- [x] README um Setup, Architektur, Funktionen und Grenzen ergänzen
+- [x] Release-Build erzeugen
 
 Akzeptanzkriterien:
 
@@ -454,4 +454,6 @@ Für jede begonnene Iteration wird dieser Block kopiert und ausgefüllt:
 
 **Iteration 7 – Abschluss und Bewertung** wurde am 28.08.2026 abgeschlossen. Ein eigener Bewertungsbereich ermöglicht den Statuswechsel zu `FINISHED` und anschließend genau eine namentlich zugeordnete Bewertung pro Spieler und Abend. Gastgeber, Essen und Gesamtabend werden mit 1 bis 5 Punkten bewertet; Kommentare sind optional und Durchschnittswerte werden unmittelbar angezeigt. Room verwendet Schema-Version 3 mit expliziter Migration 2→3 und einem eindeutigen Index für Spieler und Spieleabend. Unit-Tests, Debug-Build und acht instrumentierte Tests auf dem Emulator waren erfolgreich; die Migration einer vorhandenen Installation und der neue Navigationsbereich wurden dort ebenfalls geprüft.
 
-**Nächster Schritt:** Iteration 8 – MVP-Qualität und Abgabe.
+**Iteration 8 – MVP-Qualität und Abgabe** wurde am 28.08.2026 abgeschlossen. Core-Library-Desugaring stellt die verwendeten `java.time`-APIs nun auch für API 24 und 25 bereit. Android Lint meldet keine Fehler; ungenutzte Vorlagenressourcen und ein redundantes Manifest-Label wurden entfernt. Bewertungselemente besitzen verständliche Accessibility-Beschreibungen und passen sich horizontal an. Der kritische Ablauf vom Abschluss bis zum Bewertungsdialog wird durch einen Compose-UI-Test abgedeckt. README, Grenzen und reproduzierbarer Demo-Ablauf sind vollständig dokumentiert. Unit-Tests, neun instrumentierte Tests, Debug-Build, Lint und der unsignierte Release-Build waren erfolgreich; große Schrift sowie Hoch- und Querformat wurden auf dem Emulator geprüft.
+
+**Nächster Schritt:** Das lokale MVP ist abgabefähig. Erweiterungen beginnen optional mit Iteration 9 – Essensabstimmung.
