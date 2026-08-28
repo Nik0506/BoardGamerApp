@@ -3,6 +3,8 @@ package com.example.boardgamerapp.data.repository
 import com.example.boardgamerapp.domain.HostRotation
 import com.example.boardgamerapp.domain.model.BoardGame
 import com.example.boardgamerapp.domain.model.GameNight
+import com.example.boardgamerapp.domain.model.FoodCategory
+import com.example.boardgamerapp.domain.model.FoodVote
 import com.example.boardgamerapp.domain.model.GameNightStatus
 import com.example.boardgamerapp.domain.model.LateNotice
 import com.example.boardgamerapp.domain.model.Player
@@ -17,6 +19,8 @@ class InMemoryGameNightRepository(
     votes: List<Vote> = sampleVotes,
     lateNotices: List<LateNotice> = emptyList(),
     reviews: List<Review> = emptyList(),
+    foodCategories: List<FoodCategory> = emptyList(),
+    foodVotes: List<FoodVote> = emptyList(),
     private val now: () -> LocalDateTime = LocalDateTime::now,
 ) : BoardGamerRepository {
 
@@ -26,6 +30,8 @@ class InMemoryGameNightRepository(
     private val votes = votes.toMutableList()
     private val lateNotices = lateNotices.toMutableList()
     private val reviews = reviews.toMutableList()
+    private val foodCategories = foodCategories.toMutableList()
+    private val foodVotes = foodVotes.toMutableList()
 
     override fun getUpcomingGameNight(): Result<UpcomingGameNight?> = runCatching {
         val nextGameNight = findUpcomingGameNight() ?: return@runCatching null
@@ -281,6 +287,67 @@ class InMemoryGameNightRepository(
         ).also(reviews::add)
     }
 
+    override fun getFoodVotingSnapshot(): Result<FoodVotingSnapshot?> = runCatching {
+        val gameNight = findUpcomingGameNight() ?: return@runCatching null
+        if (foodCategories.none { it.gameNightId == gameNight.id }) {
+            defaultFoodCategories.forEach { name ->
+                foodCategories += FoodCategory(
+                    id = (foodCategories.maxOfOrNull { it.id } ?: 0L) + 1,
+                    name = name,
+                    gameNightId = gameNight.id,
+                )
+            }
+        }
+        val categories = foodCategories.filter { it.gameNightId == gameNight.id }
+        val votes = foodVotes.filter { it.gameNightId == gameNight.id }
+        FoodVotingSnapshot(
+            gameNight = gameNight,
+            results = categories.map { category ->
+                FoodVoteResult(
+                    category,
+                    votes.filter { it.foodCategoryId == category.id }.mapTo(mutableSetOf()) { it.playerId },
+                )
+            }.sortedWith(compareByDescending<FoodVoteResult> { it.voteCount }.thenBy { it.category.name.lowercase() }),
+            players = players.sortedBy { it.hostOrder },
+        )
+    }
+
+    override fun addFoodCategory(name: String): Result<FoodCategory> = runCatching {
+        val gameNight = findUpcomingGameNight() ?: error("Es gibt keinen kommenden Spieleabend.")
+        val validatedName = name.required("Kategorie")
+        require(foodCategories.none { it.gameNightId == gameNight.id && it.name.equals(validatedName, true) }) {
+            "Diese Essenskategorie gibt es bereits."
+        }
+        FoodCategory(
+            id = (foodCategories.maxOfOrNull { it.id } ?: 0L) + 1,
+            name = validatedName,
+            gameNightId = gameNight.id,
+        ).also(foodCategories::add)
+    }
+
+    override fun deleteFoodCategory(categoryId: Long): Result<Unit> = runCatching {
+        val gameNight = findUpcomingGameNight() ?: error("Es gibt keinen kommenden Spieleabend.")
+        val category = foodCategories.firstOrNull { it.id == categoryId && it.gameNightId == gameNight.id }
+            ?: error("Die Essenskategorie wurde nicht gefunden.")
+        foodCategories.remove(category)
+        foodVotes.removeAll { it.foodCategoryId == category.id }
+    }
+
+    override fun castFoodVote(playerId: Long, categoryId: Long): Result<FoodVote> = runCatching {
+        val gameNight = findUpcomingGameNight() ?: error("Es gibt keinen kommenden Spieleabend.")
+        require(players.any { it.id == playerId }) { "Der ausgewählte Spieler wurde nicht gefunden." }
+        require(foodCategories.any { it.id == categoryId && it.gameNightId == gameNight.id }) {
+            "Die ausgewählte Essenskategorie gehört nicht zum kommenden Spieleabend."
+        }
+        foodVotes.removeAll { it.playerId == playerId && it.gameNightId == gameNight.id }
+        FoodVote(
+            id = (foodVotes.maxOfOrNull { it.id } ?: 0L) + 1,
+            playerId = playerId,
+            foodCategoryId = categoryId,
+            gameNightId = gameNight.id,
+        ).also(foodVotes::add)
+    }
+
     private fun findUpcomingGameNight(): GameNight? = gameNights
         .asSequence()
         .filter { it.status == GameNightStatus.PLANNED }
@@ -302,6 +369,8 @@ class InMemoryGameNightRepository(
     }
 
     companion object {
+        private val defaultFoodCategories = listOf("Asiatisch", "Burger", "Pizza")
+
         private val samplePlayers = listOf(
             Player(
                 id = 1,

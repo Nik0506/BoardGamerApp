@@ -154,9 +154,25 @@ class RoomGameNightRepositoryTest {
     }
 
     @Test
-    fun schemaHasVersionThreeAndAllIterationSevenTables() {
+    fun roomRepositoryPersistsAndReplacesFoodVote() {
+        val repository = RoomGameNightRepository(database, now = { LocalDateTime.of(2026, 8, 29, 12, 0) })
+        val max = repository.addPlayer("Max", "Adresse").getOrThrow()
+        repository.addPlayer("Lea", "Adresse 2").getOrThrow()
+        repository.createNextGameNight().getOrThrow()
+        val categories = repository.getFoodVotingSnapshot().getOrThrow()!!.results
+
+        repository.castFoodVote(max.id, categories[0].category.id).getOrThrow()
+        repository.castFoodVote(max.id, categories[1].category.id).getOrThrow()
+
+        val snapshot = repository.getFoodVotingSnapshot().getOrThrow()!!
+        assertEquals(1, snapshot.totalVotes)
+        assertEquals(1, snapshot.missingPlayers.size)
+    }
+
+    @Test
+    fun schemaHasVersionFourAndAllIterationNineTables() {
         val sqliteDatabase = database.openHelper.writableDatabase
-        assertEquals(3, sqliteDatabase.version)
+        assertEquals(4, sqliteDatabase.version)
         val tables = sqliteDatabase.query(
             "SELECT name FROM sqlite_master WHERE type = 'table'",
         ).use { cursor ->
@@ -172,5 +188,7 @@ class RoomGameNightRepositoryTest {
         assertTrue("votes" in tables)
         assertTrue("late_notices" in tables)
         assertTrue("reviews" in tables)
+        assertTrue("food_categories" in tables)
+        assertTrue("food_votes" in tables)
     }
 }

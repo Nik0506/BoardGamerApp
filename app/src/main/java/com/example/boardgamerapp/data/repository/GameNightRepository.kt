@@ -6,6 +6,8 @@ import com.example.boardgamerapp.domain.model.LateNotice
 import com.example.boardgamerapp.domain.model.Player
 import com.example.boardgamerapp.domain.model.Vote
 import com.example.boardgamerapp.domain.model.Review
+import com.example.boardgamerapp.domain.model.FoodCategory
+import com.example.boardgamerapp.domain.model.FoodVote
 
 data class UpcomingGameNight(
     val gameNight: GameNight,
@@ -49,6 +51,24 @@ data class ReviewSnapshot(
     val reviews: List<Review>,
     val averages: ReviewAverages?,
 )
+
+data class FoodVoteResult(
+    val category: FoodCategory,
+    val voterIds: Set<Long>,
+) {
+    val voteCount: Int = voterIds.size
+}
+
+data class FoodVotingSnapshot(
+    val gameNight: GameNight,
+    val results: List<FoodVoteResult>,
+    val players: List<Player>,
+) {
+    val totalVotes: Int = results.sumOf { it.voteCount }
+    val missingPlayers: List<Player> = players.filter { player ->
+        results.none { player.id in it.voterIds }
+    }
+}
 
 interface GameNightRepository {
     fun getUpcomingGameNight(): Result<UpcomingGameNight?>
@@ -105,13 +125,24 @@ interface ReviewRepository {
     ): Result<Review>
 }
 
+interface FoodVotingRepository {
+    fun getFoodVotingSnapshot(): Result<FoodVotingSnapshot?>
+
+    fun addFoodCategory(name: String): Result<FoodCategory>
+
+    fun deleteFoodCategory(categoryId: Long): Result<Unit>
+
+    fun castFoodVote(playerId: Long, categoryId: Long): Result<FoodVote>
+}
+
 interface BoardGamerRepository :
     GameNightRepository,
     LateNoticeRepository,
     PlayerRepository,
     GameSuggestionRepository,
     VotingRepository,
-    ReviewRepository
+    ReviewRepository,
+    FoodVotingRepository
 
 enum class MoveDirection {
     UP,

@@ -9,7 +9,7 @@ class AppDestinationTest {
     @Test
     fun `navigation contains all current destinations`() {
         assertEquals(
-            listOf("Termin", "Spiele", "Bewertung", "Profil"),
+            listOf("Termin", "Spiele", "Essen", "Bewertung", "Profil"),
             AppDestination.entries.map { it.label },
         )
     }

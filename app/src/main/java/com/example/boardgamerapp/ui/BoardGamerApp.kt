@@ -24,6 +24,8 @@ import com.example.boardgamerapp.ui.dashboard.DashboardScreen
 import com.example.boardgamerapp.ui.dashboard.DashboardViewModel
 import com.example.boardgamerapp.ui.games.GamesScreen
 import com.example.boardgamerapp.ui.games.GamesViewModel
+import com.example.boardgamerapp.ui.food.FoodScreen
+import com.example.boardgamerapp.ui.food.FoodViewModel
 import com.example.boardgamerapp.ui.navigation.AppDestination
 import com.example.boardgamerapp.ui.players.PlayersScreen
 import com.example.boardgamerapp.ui.players.PlayersViewModel
@@ -50,6 +52,9 @@ fun BoardGamerApp() {
     val reviewViewModel: ReviewViewModel = viewModel(
         factory = ReviewViewModel.factory(repository),
     )
+    val foodViewModel: FoodViewModel = viewModel(
+        factory = FoodViewModel.factory(repository),
+    )
     var currentDestination by rememberSaveable {
         mutableStateOf(AppDestination.GAME_NIGHT)
     }
@@ -73,6 +78,7 @@ fun BoardGamerApp() {
                             AppDestination.PROFILE -> playersViewModel.loadPlayers()
                             AppDestination.GAMES -> gamesViewModel.loadGames()
                             AppDestination.REVIEW -> reviewViewModel.load()
+                            AppDestination.FOOD -> foodViewModel.load()
                         }
                     },
                 )
@@ -135,6 +141,20 @@ fun BoardGamerApp() {
                     onSaveReview = reviewViewModel::saveReview,
                     onDismissEditor = reviewViewModel::dismissEditor,
                     onDismissMessage = reviewViewModel::clearMessage,
+                    modifier = Modifier.padding(innerPadding),
+                )
+
+                AppDestination.FOOD -> FoodScreen(
+                    uiState = foodViewModel.uiState,
+                    onSelectPlayer = foodViewModel::selectPlayer,
+                    onCastVote = foodViewModel::castVote,
+                    onAddCategory = foodViewModel::beginAddCategory,
+                    onCategoryNameChange = foodViewModel::updateCategoryName,
+                    onSaveCategory = foodViewModel::saveCategory,
+                    onDismissCategoryEditor = foodViewModel::dismissCategoryEditor,
+                    onDeleteCategory = foodViewModel::deleteCategory,
+                    onRemindMissingPlayers = foodViewModel::remindMissingPlayers,
+                    onDismissMessage = foodViewModel::clearMessage,
                     modifier = Modifier.padding(innerPadding),
                 )
             }

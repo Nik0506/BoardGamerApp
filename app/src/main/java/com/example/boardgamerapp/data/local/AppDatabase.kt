@@ -9,12 +9,15 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.room.TypeConverters
 import com.example.boardgamerapp.data.local.dao.BoardGameDao
 import com.example.boardgamerapp.data.local.dao.GameNightDao
+import com.example.boardgamerapp.data.local.dao.FoodDao
 import com.example.boardgamerapp.data.local.dao.LateNoticeDao
 import com.example.boardgamerapp.data.local.dao.PlayerDao
 import com.example.boardgamerapp.data.local.dao.ReviewDao
 import com.example.boardgamerapp.data.local.dao.VoteDao
 import com.example.boardgamerapp.data.local.entity.BoardGameEntity
 import com.example.boardgamerapp.data.local.entity.GameNightEntity
+import com.example.boardgamerapp.data.local.entity.FoodCategoryEntity
+import com.example.boardgamerapp.data.local.entity.FoodVoteEntity
 import com.example.boardgamerapp.data.local.entity.LateNoticeEntity
 import com.example.boardgamerapp.data.local.entity.PlayerEntity
 import com.example.boardgamerapp.data.local.entity.ReviewEntity
@@ -28,8 +31,10 @@ import com.example.boardgamerapp.data.local.entity.VoteEntity
         VoteEntity::class,
         LateNoticeEntity::class,
         ReviewEntity::class,
+        FoodCategoryEntity::class,
+        FoodVoteEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 @TypeConverters(DatabaseConverters::class)
@@ -46,6 +51,8 @@ abstract class AppDatabase : RoomDatabase() {
 
     abstract fun reviewDao(): ReviewDao
 
+    abstract fun foodDao(): FoodDao
+
     companion object {
         @Volatile
         private var instance: AppDatabase? = null
@@ -60,7 +67,7 @@ abstract class AppDatabase : RoomDatabase() {
                     // The existing repository contract is synchronous. A future
                     // coroutine-based API can remove this compatibility setting.
                     .allowMainThreadQueries()
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                     .also { instance = it }
             }
@@ -116,6 +123,39 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL(
                     "CREATE INDEX IF NOT EXISTS `index_reviews_gameNightId` ON `reviews` (`gameNightId`)",
                 )
+            }
+        }
+
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `food_categories` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `gameNightId` INTEGER NOT NULL,
+                        FOREIGN KEY(`gameNightId`) REFERENCES `game_nights`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_food_categories_gameNightId` ON `food_categories` (`gameNightId`)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_food_categories_gameNightId_name` ON `food_categories` (`gameNightId`, `name`)")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `food_votes` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `playerId` INTEGER NOT NULL,
+                        `foodCategoryId` INTEGER NOT NULL,
+                        `gameNightId` INTEGER NOT NULL,
+                        FOREIGN KEY(`playerId`) REFERENCES `players`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(`foodCategoryId`) REFERENCES `food_categories`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(`gameNightId`) REFERENCES `game_nights`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_food_votes_playerId_gameNightId` ON `food_votes` (`playerId`, `gameNightId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_food_votes_foodCategoryId` ON `food_votes` (`foodCategoryId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_food_votes_gameNightId` ON `food_votes` (`gameNightId`)")
             }
         }
     }

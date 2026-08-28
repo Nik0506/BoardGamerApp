@@ -4,6 +4,8 @@ import android.content.Context
 import com.example.boardgamerapp.data.local.AppDatabase
 import com.example.boardgamerapp.data.local.entity.BoardGameEntity
 import com.example.boardgamerapp.data.local.entity.GameNightEntity
+import com.example.boardgamerapp.data.local.entity.FoodCategoryEntity
+import com.example.boardgamerapp.data.local.entity.FoodVoteEntity
 import com.example.boardgamerapp.data.local.entity.LateNoticeEntity
 import com.example.boardgamerapp.data.local.entity.PlayerEntity
 import com.example.boardgamerapp.data.local.entity.ReviewEntity
@@ -11,6 +13,8 @@ import com.example.boardgamerapp.data.local.entity.VoteEntity
 import com.example.boardgamerapp.domain.HostRotation
 import com.example.boardgamerapp.domain.model.BoardGame
 import com.example.boardgamerapp.domain.model.GameNight
+import com.example.boardgamerapp.domain.model.FoodCategory
+import com.example.boardgamerapp.domain.model.FoodVote
 import com.example.boardgamerapp.domain.model.GameNightStatus
 import com.example.boardgamerapp.domain.model.LateNotice
 import com.example.boardgamerapp.domain.model.Player
@@ -272,6 +276,56 @@ class RoomGameNightRepository(
         review.copy(id = database.reviewDao().insert(review)).toDomain()
     }
 
+    override fun getFoodVotingSnapshot(): Result<FoodVotingSnapshot?> = runCatching {
+        val gameNight = findUpcomingGameNight() ?: return@runCatching null
+        var categories = database.foodDao().getCategories(gameNight.id)
+        if (categories.isEmpty()) {
+            database.foodDao().insertCategories(
+                defaultFoodCategories.map { FoodCategoryEntity(name = it, gameNightId = gameNight.id) },
+            )
+            categories = database.foodDao().getCategories(gameNight.id)
+        }
+        val votes = database.foodDao().getVotes(gameNight.id)
+        FoodVotingSnapshot(
+            gameNight = gameNight.toDomain(),
+            results = categories.map { category ->
+                FoodVoteResult(
+                    category = category.toDomain(),
+                    voterIds = votes.filter { it.foodCategoryId == category.id }.mapTo(mutableSetOf()) { it.playerId },
+                )
+            }.sortedWith(compareByDescending<FoodVoteResult> { it.voteCount }.thenBy { it.category.name.lowercase() }),
+            players = database.playerDao().getAll().map { it.toDomain() },
+        )
+    }
+
+    override fun addFoodCategory(name: String): Result<FoodCategory> = runCatching {
+        val gameNight = findUpcomingGameNight() ?: error("Es gibt keinen kommenden Spieleabend.")
+        val validatedName = name.required("Kategorie")
+        require(database.foodDao().getCategories(gameNight.id).none { it.name.equals(validatedName, ignoreCase = true) }) {
+            "Diese Essenskategorie gibt es bereits."
+        }
+        val category = FoodCategoryEntity(name = validatedName, gameNightId = gameNight.id)
+        category.copy(id = database.foodDao().insertCategory(category)).toDomain()
+    }
+
+    override fun deleteFoodCategory(categoryId: Long): Result<Unit> = runCatching {
+        val gameNight = findUpcomingGameNight() ?: error("Es gibt keinen kommenden Spieleabend.")
+        val category = database.foodDao().getCategories(gameNight.id).firstOrNull { it.id == categoryId }
+            ?: error("Die Essenskategorie wurde nicht gefunden.")
+        database.foodDao().deleteCategory(category)
+    }
+
+    override fun castFoodVote(playerId: Long, categoryId: Long): Result<FoodVote> = runCatching {
+        val gameNight = findUpcomingGameNight() ?: error("Es gibt keinen kommenden Spieleabend.")
+        require(database.playerDao().getById(playerId) != null) { "Der ausgewählte Spieler wurde nicht gefunden." }
+        require(database.foodDao().getCategories(gameNight.id).any { it.id == categoryId }) {
+            "Die ausgewählte Essenskategorie gehört nicht zum kommenden Spieleabend."
+        }
+        database.foodDao().replaceVote(
+            FoodVoteEntity(playerId = playerId, foodCategoryId = categoryId, gameNightId = gameNight.id),
+        ).toDomain()
+    }
+
     private fun findUpcomingGameNight(): GameNightEntity? = database.gameNightDao()
         .getAll()
         .asSequence()
@@ -362,6 +416,10 @@ class RoomGameNightRepository(
         id, playerId, gameNightId, hostRating, foodRating, eveningRating, comment,
     )
 
+    private fun FoodCategoryEntity.toDomain() = FoodCategory(id, name, gameNightId)
+
+    private fun FoodVoteEntity.toDomain() = FoodVote(id, playerId, foodCategoryId, gameNightId)
+
     private fun List<Review>.toAverages(): ReviewAverages? = takeIf { it.isNotEmpty() }?.let {
         ReviewAverages(
             host = it.map(Review::hostRating).average(),
@@ -371,6 +429,8 @@ class RoomGameNightRepository(
     }
 
     companion object {
+        private val defaultFoodCategories = listOf("Asiatisch", "Burger", "Pizza")
+
         fun create(context: Context): RoomGameNightRepository =
             RoomGameNightRepository(
                 database = AppDatabase.getInstance(context),

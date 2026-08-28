@@ -348,10 +348,10 @@ Ergebnis/Demo: Abgabefähige lokale Version der BoardGamerApp.
 
 ### Iteration 9 – Essensabstimmung
 
-- [ ] Kategorien verwalten
-- [ ] Genau eine Stimme pro Spieler speichern
-- [ ] Ergebnis und Gleichstand anzeigen
-- [ ] Lokale Erinnerung an noch fehlende Stimmen planen
+- [x] Kategorien verwalten
+- [x] Genau eine Stimme pro Spieler speichern
+- [x] Ergebnis und Gleichstand anzeigen
+- [x] Lokale Erinnerung an noch fehlende Stimmen planen
 
 ### Iteration 10 – Restaurant und Bestellungen
 
@@ -456,4 +456,6 @@ Für jede begonnene Iteration wird dieser Block kopiert und ausgefüllt:
 
 **Iteration 8 – MVP-Qualität und Abgabe** wurde am 28.08.2026 abgeschlossen. Core-Library-Desugaring stellt die verwendeten `java.time`-APIs nun auch für API 24 und 25 bereit. Android Lint meldet keine Fehler; ungenutzte Vorlagenressourcen und ein redundantes Manifest-Label wurden entfernt. Bewertungselemente besitzen verständliche Accessibility-Beschreibungen und passen sich horizontal an. Der kritische Ablauf vom Abschluss bis zum Bewertungsdialog wird durch einen Compose-UI-Test abgedeckt. README, Grenzen und reproduzierbarer Demo-Ablauf sind vollständig dokumentiert. Unit-Tests, neun instrumentierte Tests, Debug-Build, Lint und der unsignierte Release-Build waren erfolgreich; große Schrift sowie Hoch- und Querformat wurden auf dem Emulator geprüft.
 
-**Nächster Schritt:** Das lokale MVP ist abgabefähig. Erweiterungen beginnen optional mit Iteration 9 – Essensabstimmung.
+**Iteration 9 – Essensabstimmung** wurde am 29.08.2026 abgeschlossen. Ein eigener Compose-Bereich ermöglicht das Verwalten von Essenskategorien und genau eine änderbare Stimme pro Spieler und Abend. Ergebnis, Gleichstand, Beteiligung und fehlende Stimmen werden unmittelbar angezeigt. Die Erinnerungsaktion bleibt bewusst lokal und behauptet keinen Versand. Room verwendet Schema-Version 4 mit expliziter Migration 3→4 und Fremdschlüsseln für Kategorien und Stimmen. Unit-, ViewModel- und instrumentierte Persistenztests decken Abstimmung, Stimmenwechsel, Gleichstand, Kategorien sowie fehlende Stimmen ab.
+
+**Nächster Schritt:** Iteration 10 – Restaurant und Bestellungen beginnt erst nach ausdrücklicher Freigabe.
