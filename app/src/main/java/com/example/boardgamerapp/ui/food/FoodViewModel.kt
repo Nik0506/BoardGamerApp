@@ -6,11 +6,12 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.example.boardgamerapp.data.repository.BoardGamerRepository
-import com.example.boardgamerapp.data.repository.FoodVotingRepository
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-class FoodViewModel(private val repository: FoodVotingRepository) : ViewModel() {
+class FoodViewModel(private val repository: BoardGamerRepository) : ViewModel() {
     var uiState by mutableStateOf(FoodUiState())
         private set
 
@@ -49,8 +50,67 @@ class FoodViewModel(private val repository: FoodVotingRepository) : ViewModel() 
                     },
                     missingPlayerNames = snapshot.missingPlayers.map { it.name },
                 )
+                loadOrders()
             },
             onFailure = { uiState = uiState.copy(isLoading = false, errorMessage = it.message) },
+        )
+    }
+
+    private fun loadOrders() {
+        repository.getOrderingSnapshot().onSuccess { snapshot ->
+            snapshot ?: return@onSuccess
+            uiState = uiState.copy(
+                hostId = snapshot.host.id,
+                restaurantName = snapshot.restaurant?.name,
+                menuUrl = snapshot.restaurant?.menuUrl,
+                orders = snapshot.orders.map { FoodOrderUiModel(it.order.id, it.player.id, it.player.name, it.order.dish, it.order.note, formatCents(it.order.priceCents)) },
+                totalPrice = formatCents(snapshot.totalCents),
+            )
+        }.onFailure { uiState = uiState.copy(errorMessage = it.message) }
+    }
+
+    fun beginRestaurantEditor() {
+        if (uiState.selectedPlayerId != uiState.hostId) {
+            uiState = uiState.copy(errorMessage = "Nur der Gastgeber kann das Restaurant bearbeiten.")
+            return
+        }
+        uiState = uiState.copy(restaurantEditor = RestaurantEditor(uiState.restaurantName.orEmpty(), uiState.menuUrl.orEmpty()), editorError = null)
+    }
+    fun updateRestaurantName(value: String) { uiState = uiState.copy(restaurantEditor = uiState.restaurantEditor?.copy(name = value), editorError = null) }
+    fun updateMenuUrl(value: String) { uiState = uiState.copy(restaurantEditor = uiState.restaurantEditor?.copy(menuUrl = value), editorError = null) }
+    fun dismissRestaurantEditor() { uiState = uiState.copy(restaurantEditor = null, editorError = null) }
+    fun saveRestaurant() {
+        val editor = uiState.restaurantEditor ?: return
+        val playerId = uiState.selectedPlayerId ?: return
+        repository.saveRestaurant(playerId, editor.name, editor.menuUrl).fold(
+            onSuccess = { uiState = uiState.copy(restaurantEditor = null, message = "Restaurant gespeichert."); loadOrders() },
+            onFailure = { uiState = uiState.copy(editorError = it.message) },
+        )
+    }
+
+    fun beginOrderEditor() {
+        val own = uiState.orders.firstOrNull { it.playerId == uiState.selectedPlayerId }
+        uiState = uiState.copy(orderEditor = OrderEditor(own?.dish.orEmpty(), own?.note.orEmpty(), own?.price?.removeSuffix(" €")?.trim().orEmpty()), editorError = null)
+    }
+    fun updateOrderDish(value: String) { uiState = uiState.copy(orderEditor = uiState.orderEditor?.copy(dish = value), editorError = null) }
+    fun updateOrderNote(value: String) { uiState = uiState.copy(orderEditor = uiState.orderEditor?.copy(note = value), editorError = null) }
+    fun updateOrderPrice(value: String) { uiState = uiState.copy(orderEditor = uiState.orderEditor?.copy(price = value), editorError = null) }
+    fun dismissOrderEditor() { uiState = uiState.copy(orderEditor = null, editorError = null) }
+    fun saveOrder() {
+        val editor = uiState.orderEditor ?: return
+        val playerId = uiState.selectedPlayerId ?: return
+        val cents = runCatching { editor.price.replace(',', '.').toBigDecimal().setScale(2, RoundingMode.UNNECESSARY).movePointRight(2).longValueExact() }
+            .getOrElse { uiState = uiState.copy(editorError = "Bitte einen gültigen Preis mit höchstens zwei Nachkommastellen eingeben."); return }
+        repository.saveFoodOrder(playerId, editor.dish, editor.note, cents).fold(
+            onSuccess = { uiState = uiState.copy(orderEditor = null, message = "Bestellung gespeichert."); loadOrders() },
+            onFailure = { uiState = uiState.copy(editorError = it.message) },
+        )
+    }
+    fun deleteOrder(orderId: Long) {
+        val playerId = uiState.selectedPlayerId ?: return
+        repository.deleteFoodOrder(orderId, playerId).fold(
+            onSuccess = { uiState = uiState.copy(message = "Bestellung gelöscht."); loadOrders() },
+            onFailure = { uiState = uiState.copy(errorMessage = it.message) },
         )
     }
 
@@ -108,5 +168,7 @@ class FoodViewModel(private val repository: FoodVotingRepository) : ViewModel() 
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T = FoodViewModel(repository) as T
         }
+
+        private fun formatCents(cents: Long): String = String.format(Locale.GERMANY, "%.2f €", BigDecimal.valueOf(cents, 2))
     }
 }

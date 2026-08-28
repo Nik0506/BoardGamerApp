@@ -355,10 +355,10 @@ Ergebnis/Demo: Abgabefähige lokale Version der BoardGamerApp.
 
 ### Iteration 10 – Restaurant und Bestellungen
 
-- [ ] Restaurantname und Menü-Link durch Gastgeber hinterlegen
-- [ ] Bestellung mit Gericht, Hinweis und Preis erfassen
-- [ ] Bestellungen gruppiert anzeigen
-- [ ] Gesamtsumme zuverlässig als Dezimal-/Cent-Wert berechnen
+- [x] Restaurantname und Menü-Link durch Gastgeber hinterlegen
+- [x] Bestellung mit Gericht, Hinweis und Preis erfassen
+- [x] Bestellungen gruppiert anzeigen
+- [x] Gesamtsumme zuverlässig als Dezimal-/Cent-Wert berechnen
 
 ### Iteration 11 – Mehrere Geräte
 
@@ -458,4 +458,6 @@ Für jede begonnene Iteration wird dieser Block kopiert und ausgefüllt:
 
 **Iteration 9 – Essensabstimmung** wurde am 29.08.2026 abgeschlossen. Ein eigener Compose-Bereich ermöglicht das Verwalten von Essenskategorien und genau eine änderbare Stimme pro Spieler und Abend. Ergebnis, Gleichstand, Beteiligung und fehlende Stimmen werden unmittelbar angezeigt. Die Erinnerungsaktion bleibt bewusst lokal und behauptet keinen Versand. Room verwendet Schema-Version 4 mit expliziter Migration 3→4 und Fremdschlüsseln für Kategorien und Stimmen. Unit-, ViewModel- und instrumentierte Persistenztests decken Abstimmung, Stimmenwechsel, Gleichstand, Kategorien sowie fehlende Stimmen ab.
 
-**Nächster Schritt:** Iteration 10 – Restaurant und Bestellungen beginnt erst nach ausdrücklicher Freigabe.
+**Iteration 10 – Restaurant und Bestellungen** wurde am 29.08.2026 abgeschlossen. Der Gastgeber kann Restaurantname und einen validierten Menü-Link für den kommenden Abend hinterlegen. Jede Person kann ihre eigene Bestellung mit Gericht, optionalem Hinweis und Preis erfassen, ändern oder löschen. Die gruppierte Übersicht weist Bestellungen Personen zu und summiert Preise ohne Gleitkommafehler als ganze Centbeträge. Room verwendet Schema-Version 5 mit expliziter Migration 4→5 und eindeutigen Beziehungen für Restaurant und Bestellungen.
+
+**Nächster Schritt:** Vor Iteration 11 ist die vorgesehene Architekturentscheidung zu Konten, Gruppen, Datenschutz, Konflikten, Offline-Verhalten und Betriebskosten gemeinsam zu treffen.

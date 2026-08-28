@@ -29,11 +29,14 @@ Eine Android-App zur Organisation regelmäßiger Brettspielabende. Das Projekt w
 - Pro Spieler genau eine Essensstimme abgeben oder ändern
 - Ergebnis, Gleichstand und noch fehlende Stimmen anzeigen
 - Noch nicht abstimmende Personen über eine rein lokale Erinnerungsaktion auflisten
+- Restaurantname und Menü-Link durch den Gastgeber hinterlegen
+- Eigene Bestellung mit Gericht, optionalem Hinweis und Preis erfassen oder ändern
+- Bestellungen nach Personen anzeigen und die Gesamtsumme centgenau berechnen
 - Kontrollierte Demo-Daten beim ersten Start einer leeren Datenbank
 - Gemeinsames, austauschbares Repository mit Room als produktiver Datenquelle
 - ViewModel-basierte Zustandsverwaltung
 
-Die Kernabläufe von Terminplanung, Gastgeberrotation, Spiel- und Essensabstimmung, lokaler Verspätungsmeldung und Bewertung funktionieren. Ein Spieleabend kann lokal von jedem Gruppenmitglied abgeschlossen und danach namentlich bewertet werden. Beim ersten Start wird eine leere Datenbank kontrolliert mit Demo-Daten befüllt; vorhandene Daten werden nicht überschrieben. Die Datenbank verwendet Schema-Version 4. `late_notices`, `reviews`, `food_categories` und `food_votes` werden über die expliziten Migrationen `1 -> 2`, `2 -> 3` und `3 -> 4` ergänzt; es gibt keine destructive fallback migration.
+Die Kernabläufe von Terminplanung, Gastgeberrotation, Spiel- und Essensabstimmung, Restaurant- und Bestellplanung, lokaler Verspätungsmeldung und Bewertung funktionieren. Ein Spieleabend kann lokal von jedem Gruppenmitglied abgeschlossen und danach namentlich bewertet werden. Beim ersten Start wird eine leere Datenbank kontrolliert mit Demo-Daten befüllt; vorhandene Daten werden nicht überschrieben. Die Datenbank verwendet Schema-Version 5. Die Erweiterungen werden über die expliziten Migrationen `1 -> 2`, `2 -> 3`, `3 -> 4` und `4 -> 5` ergänzt; es gibt keine destructive fallback migration.
 
 ## Technik
 
@@ -73,10 +76,11 @@ Bei einer leeren Debug-Datenbank werden Max und Lea, der Spieleabend am 28.08.20
 2. Unter **Profil** einen Spieler ergänzen und die Gastgeberreihenfolge ändern.
 3. Unter **Spiele** den aktiven Spieler wechseln, einen Vorschlag ergänzen und abstimmen.
 4. Unter **Essen** eine Kategorie ergänzen, für beide Spieler abstimmen und Ergebnis beziehungsweise Gleichstand prüfen.
-5. Unter **Bewertung** den Spieleabend abschließen.
-6. Für Max und Lea unterschiedliche Bewertungen samt optionalem Kommentar speichern.
-7. Die angezeigten Durchschnittswerte prüfen, die App vollständig schließen und erneut öffnen.
-8. Kontrollieren, dass Spieler, Spiel- und Essensstimmen, Meldungen, Abschlussstatus und Bewertungen erhalten geblieben sind.
+5. Als Gastgeber Restaurant und Menü-Link hinterlegen; anschließend für beide Spieler Bestellungen erfassen und die Gesamtsumme prüfen.
+6. Unter **Bewertung** den Spieleabend abschließen.
+7. Für Max und Lea unterschiedliche Bewertungen samt optionalem Kommentar speichern.
+8. Die angezeigten Durchschnittswerte prüfen, die App vollständig schließen und erneut öffnen.
+9. Kontrollieren, dass Spieler, Stimmen, Restaurant, Bestellungen, Meldungen, Abschlussstatus und Bewertungen erhalten geblieben sind.
 
 ## Architektur
 
@@ -87,7 +91,7 @@ Compose UI → ViewModel → Repository → Room / SQLite
                                       ↘ In-Memory (Preview/Test)
 ```
 
-Die Domain-Modelle bleiben unabhängig von Room. Datenbank-Entities werden im Repository in Domain-Modelle umgewandelt. Spielstimmen, Essensstimmen und Bewertungen besitzen jeweils einen eindeutigen Index aus Spieler und Spieleabend. Essenskategorien gehören zu genau einem Abend; beim Löschen einer Kategorie werden ihre Stimmen mit entfernt. Bewertungen sind nur nach dem Statuswechsel zu `FINISHED` zulässig und müssen in allen drei Pflichtkategorien zwischen 1 und 5 liegen. Verspätungsmeldungen besitzen eigene Indizes für Spieler, Spieleabend und Erstellzeitpunkt und werden bei gelöschten Spielern oder Terminen mit entfernt.
+Die Domain-Modelle bleiben unabhängig von Room. Datenbank-Entities werden im Repository in Domain-Modelle umgewandelt. Spielstimmen, Essensstimmen, Bestellungen und Bewertungen besitzen jeweils einen eindeutigen Index aus Spieler und Spieleabend. Preise werden als ganze Centbeträge gespeichert und erst zur Anzeige formatiert. Restaurant und Essenskategorien gehören zu genau einem Abend. Bewertungen sind nur nach dem Statuswechsel zu `FINISHED` zulässig und müssen in allen drei Pflichtkategorien zwischen 1 und 5 liegen.
 
 ## Grenzen des lokalen MVP
 

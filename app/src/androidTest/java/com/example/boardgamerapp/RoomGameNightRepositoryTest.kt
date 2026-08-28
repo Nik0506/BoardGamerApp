@@ -170,9 +170,25 @@ class RoomGameNightRepositoryTest {
     }
 
     @Test
-    fun schemaHasVersionFourAndAllIterationNineTables() {
+    fun roomRepositoryPersistsRestaurantAndOrdersWithExactTotal() {
+        val repository = RoomGameNightRepository(database, now = { LocalDateTime.of(2026, 8, 29, 12, 0) })
+        val max = repository.addPlayer("Max", "Adresse").getOrThrow()
+        val lea = repository.addPlayer("Lea", "Adresse 2").getOrThrow()
+        repository.createNextGameNight().getOrThrow()
+        repository.saveRestaurant(max.id, "Pizza Haus", "https://example.org/menu").getOrThrow()
+        repository.saveFoodOrder(max.id, "Pizza", "", 1099).getOrThrow()
+        repository.saveFoodOrder(lea.id, "Pasta", "scharf", 1250).getOrThrow()
+
+        val snapshot = repository.getOrderingSnapshot().getOrThrow()!!
+        assertEquals("Pizza Haus", snapshot.restaurant?.name)
+        assertEquals(2, snapshot.orders.size)
+        assertEquals(2349, snapshot.totalCents)
+    }
+
+    @Test
+    fun schemaHasVersionFiveAndAllIterationTenTables() {
         val sqliteDatabase = database.openHelper.writableDatabase
-        assertEquals(4, sqliteDatabase.version)
+        assertEquals(5, sqliteDatabase.version)
         val tables = sqliteDatabase.query(
             "SELECT name FROM sqlite_master WHERE type = 'table'",
         ).use { cursor ->
@@ -190,5 +206,7 @@ class RoomGameNightRepositoryTest {
         assertTrue("reviews" in tables)
         assertTrue("food_categories" in tables)
         assertTrue("food_votes" in tables)
+        assertTrue("restaurants" in tables)
+        assertTrue("food_orders" in tables)
     }
 }

@@ -5,6 +5,8 @@ import com.example.boardgamerapp.domain.model.BoardGame
 import com.example.boardgamerapp.domain.model.GameNight
 import com.example.boardgamerapp.domain.model.FoodCategory
 import com.example.boardgamerapp.domain.model.FoodVote
+import com.example.boardgamerapp.domain.model.FoodOrder
+import com.example.boardgamerapp.domain.model.Restaurant
 import com.example.boardgamerapp.domain.model.GameNightStatus
 import com.example.boardgamerapp.domain.model.LateNotice
 import com.example.boardgamerapp.domain.model.Player
@@ -21,6 +23,8 @@ class InMemoryGameNightRepository(
     reviews: List<Review> = emptyList(),
     foodCategories: List<FoodCategory> = emptyList(),
     foodVotes: List<FoodVote> = emptyList(),
+    restaurants: List<Restaurant> = emptyList(),
+    foodOrders: List<FoodOrder> = emptyList(),
     private val now: () -> LocalDateTime = LocalDateTime::now,
 ) : BoardGamerRepository {
 
@@ -32,6 +36,8 @@ class InMemoryGameNightRepository(
     private val reviews = reviews.toMutableList()
     private val foodCategories = foodCategories.toMutableList()
     private val foodVotes = foodVotes.toMutableList()
+    private val restaurants = restaurants.toMutableList()
+    private val foodOrders = foodOrders.toMutableList()
 
     override fun getUpcomingGameNight(): Result<UpcomingGameNight?> = runCatching {
         val nextGameNight = findUpcomingGameNight() ?: return@runCatching null
@@ -346,6 +352,48 @@ class InMemoryGameNightRepository(
             foodCategoryId = categoryId,
             gameNightId = gameNight.id,
         ).also(foodVotes::add)
+    }
+
+    override fun getOrderingSnapshot(): Result<OrderingSnapshot?> = runCatching {
+        val night = findUpcomingGameNight() ?: return@runCatching null
+        val host = players.firstOrNull { it.id == night.hostId } ?: error("Der Gastgeber wurde nicht gefunden.")
+        OrderingSnapshot(
+            night,
+            host,
+            restaurants.firstOrNull { it.gameNightId == night.id },
+            foodOrders.filter { it.gameNightId == night.id }.map { order ->
+                OrderWithPlayer(order, players.first { it.id == order.playerId })
+            }.sortedBy { it.player.name.lowercase() },
+        )
+    }
+
+    override fun saveRestaurant(requestingPlayerId: Long, name: String, menuUrl: String): Result<Restaurant> = runCatching {
+        val night = findUpcomingGameNight() ?: error("Es gibt keinen kommenden Spieleabend.")
+        require(requestingPlayerId == night.hostId) { "Nur der Gastgeber kann das Restaurant bearbeiten." }
+        val cleanUrl = menuUrl.trim()
+        require(cleanUrl.startsWith("https://") || cleanUrl.startsWith("http://")) { "Der Menü-Link muss mit http:// oder https:// beginnen." }
+        val existing = restaurants.firstOrNull { it.gameNightId == night.id }
+        val value = Restaurant(existing?.id ?: ((restaurants.maxOfOrNull { it.id } ?: 0) + 1), night.id, name.required("Restaurantname"), cleanUrl)
+        restaurants.removeAll { it.gameNightId == night.id }
+        restaurants += value
+        value
+    }
+
+    override fun saveFoodOrder(playerId: Long, dish: String, note: String, priceCents: Long): Result<FoodOrder> = runCatching {
+        val night = findUpcomingGameNight() ?: error("Es gibt keinen kommenden Spieleabend.")
+        require(players.any { it.id == playerId }) { "Der ausgewählte Spieler wurde nicht gefunden." }
+        require(priceCents >= 0) { "Der Preis darf nicht negativ sein." }
+        val existing = foodOrders.firstOrNull { it.playerId == playerId && it.gameNightId == night.id }
+        val value = FoodOrder(existing?.id ?: ((foodOrders.maxOfOrNull { it.id } ?: 0) + 1), night.id, playerId, dish.required("Gericht"), note.trim(), priceCents)
+        foodOrders.removeAll { it.playerId == playerId && it.gameNightId == night.id }
+        foodOrders += value
+        value
+    }
+
+    override fun deleteFoodOrder(orderId: Long, requestingPlayerId: Long): Result<Unit> = runCatching {
+        val order = foodOrders.firstOrNull { it.id == orderId } ?: error("Die Bestellung wurde nicht gefunden.")
+        require(order.playerId == requestingPlayerId) { "Nur die eigene Bestellung kann gelöscht werden." }
+        foodOrders.remove(order)
     }
 
     private fun findUpcomingGameNight(): GameNight? = gameNights

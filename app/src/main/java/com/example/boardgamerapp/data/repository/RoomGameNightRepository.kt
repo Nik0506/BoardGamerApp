@@ -6,6 +6,8 @@ import com.example.boardgamerapp.data.local.entity.BoardGameEntity
 import com.example.boardgamerapp.data.local.entity.GameNightEntity
 import com.example.boardgamerapp.data.local.entity.FoodCategoryEntity
 import com.example.boardgamerapp.data.local.entity.FoodVoteEntity
+import com.example.boardgamerapp.data.local.entity.FoodOrderEntity
+import com.example.boardgamerapp.data.local.entity.RestaurantEntity
 import com.example.boardgamerapp.data.local.entity.LateNoticeEntity
 import com.example.boardgamerapp.data.local.entity.PlayerEntity
 import com.example.boardgamerapp.data.local.entity.ReviewEntity
@@ -15,6 +17,8 @@ import com.example.boardgamerapp.domain.model.BoardGame
 import com.example.boardgamerapp.domain.model.GameNight
 import com.example.boardgamerapp.domain.model.FoodCategory
 import com.example.boardgamerapp.domain.model.FoodVote
+import com.example.boardgamerapp.domain.model.FoodOrder
+import com.example.boardgamerapp.domain.model.Restaurant
 import com.example.boardgamerapp.domain.model.GameNightStatus
 import com.example.boardgamerapp.domain.model.LateNotice
 import com.example.boardgamerapp.domain.model.Player
@@ -326,6 +330,41 @@ class RoomGameNightRepository(
         ).toDomain()
     }
 
+    override fun getOrderingSnapshot(): Result<OrderingSnapshot?> = runCatching {
+        val night = findUpcomingGameNight() ?: return@runCatching null
+        val host = database.playerDao().getById(night.hostId)?.toDomain() ?: error("Der Gastgeber wurde nicht gefunden.")
+        OrderingSnapshot(
+            night.toDomain(),
+            host,
+            database.orderDao().getRestaurant(night.id)?.toDomain(),
+            database.orderDao().getOrders(night.id).map { order ->
+                OrderWithPlayer(order.toDomain(), database.playerDao().getById(order.playerId)?.toDomain() ?: error("Der Spieler wurde nicht gefunden."))
+            }.sortedBy { it.player.name.lowercase() },
+        )
+    }
+
+    override fun saveRestaurant(requestingPlayerId: Long, name: String, menuUrl: String): Result<Restaurant> = runCatching {
+        val night = findUpcomingGameNight() ?: error("Es gibt keinen kommenden Spieleabend.")
+        require(requestingPlayerId == night.hostId) { "Nur der Gastgeber kann das Restaurant bearbeiten." }
+        val cleanUrl = menuUrl.trim()
+        require(cleanUrl.startsWith("https://") || cleanUrl.startsWith("http://")) { "Der Menü-Link muss mit http:// oder https:// beginnen." }
+        database.orderDao().saveRestaurant(RestaurantEntity(gameNightId = night.id, name = name.required("Restaurantname"), menuUrl = cleanUrl)).toDomain()
+    }
+
+    override fun saveFoodOrder(playerId: Long, dish: String, note: String, priceCents: Long): Result<FoodOrder> = runCatching {
+        val night = findUpcomingGameNight() ?: error("Es gibt keinen kommenden Spieleabend.")
+        require(database.playerDao().getById(playerId) != null) { "Der ausgewählte Spieler wurde nicht gefunden." }
+        require(priceCents >= 0) { "Der Preis darf nicht negativ sein." }
+        database.orderDao().saveOrder(FoodOrderEntity(gameNightId = night.id, playerId = playerId, dish = dish.required("Gericht"), note = note.trim(), priceCents = priceCents)).toDomain()
+    }
+
+    override fun deleteFoodOrder(orderId: Long, requestingPlayerId: Long): Result<Unit> = runCatching {
+        val night = findUpcomingGameNight() ?: error("Es gibt keinen kommenden Spieleabend.")
+        val order = database.orderDao().getOrders(night.id).firstOrNull { it.id == orderId } ?: error("Die Bestellung wurde nicht gefunden.")
+        require(order.playerId == requestingPlayerId) { "Nur die eigene Bestellung kann gelöscht werden." }
+        database.orderDao().deleteOrder(orderId)
+    }
+
     private fun findUpcomingGameNight(): GameNightEntity? = database.gameNightDao()
         .getAll()
         .asSequence()
@@ -419,6 +458,10 @@ class RoomGameNightRepository(
     private fun FoodCategoryEntity.toDomain() = FoodCategory(id, name, gameNightId)
 
     private fun FoodVoteEntity.toDomain() = FoodVote(id, playerId, foodCategoryId, gameNightId)
+
+    private fun RestaurantEntity.toDomain() = Restaurant(id, gameNightId, name, menuUrl)
+
+    private fun FoodOrderEntity.toDomain() = FoodOrder(id, gameNightId, playerId, dish, note, priceCents)
 
     private fun List<Review>.toAverages(): ReviewAverages? = takeIf { it.isNotEmpty() }?.let {
         ReviewAverages(

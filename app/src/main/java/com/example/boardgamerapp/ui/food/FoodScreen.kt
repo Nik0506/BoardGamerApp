@@ -36,6 +36,18 @@ fun FoodScreen(
     onDismissCategoryEditor: () -> Unit,
     onDeleteCategory: (Long) -> Unit,
     onRemindMissingPlayers: () -> Unit,
+    onEditRestaurant: () -> Unit,
+    onRestaurantNameChange: (String) -> Unit,
+    onMenuUrlChange: (String) -> Unit,
+    onSaveRestaurant: () -> Unit,
+    onDismissRestaurantEditor: () -> Unit,
+    onEditOrder: () -> Unit,
+    onOrderDishChange: (String) -> Unit,
+    onOrderNoteChange: (String) -> Unit,
+    onOrderPriceChange: (String) -> Unit,
+    onSaveOrder: () -> Unit,
+    onDismissOrderEditor: () -> Unit,
+    onDeleteOrder: (Long) -> Unit,
     onDismissMessage: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -107,6 +119,46 @@ fun FoodScreen(
                     }
                 }
             }
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("Restaurant", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text(uiState.restaurantName ?: "Noch kein Restaurant hinterlegt.", Modifier.padding(top = 4.dp))
+                        uiState.menuUrl?.let { Text("Menü: $it", style = MaterialTheme.typography.bodyMedium) }
+                        TextButton(onClick = onEditRestaurant, enabled = uiState.selectedPlayerId == uiState.hostId) {
+                            Text(if (uiState.restaurantName == null) "Restaurant hinterlegen" else "Restaurant bearbeiten")
+                        }
+                        if (uiState.selectedPlayerId != uiState.hostId) Text("Nur der Gastgeber kann diese Angaben ändern.", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+            item {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Bestellungen", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Button(onClick = onEditOrder) { Text("Meine Bestellung") }
+                }
+            }
+            items(uiState.orders, key = { "order-${it.id}" }) { order ->
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp)) {
+                        Row(Modifier.fillMaxWidth()) {
+                            Text(order.playerName, Modifier.weight(1f), fontWeight = FontWeight.Bold)
+                            Text(order.price, fontWeight = FontWeight.Bold)
+                        }
+                        Text(order.dish, style = MaterialTheme.typography.titleMedium)
+                        if (order.note.isNotBlank()) Text("Hinweis: ${order.note}")
+                        if (order.playerId == uiState.selectedPlayerId) TextButton(onClick = { onDeleteOrder(order.id) }) { Text("Eigene Bestellung löschen") }
+                    }
+                }
+            }
+            item {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer), modifier = Modifier.fillMaxWidth()) {
+                    Row(Modifier.fillMaxWidth().padding(16.dp)) {
+                        Text("Gesamtsumme", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text(uiState.totalPrice, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
         }
         item { Text("", Modifier.padding(bottom = 24.dp)) }
     }
@@ -122,6 +174,33 @@ fun FoodScreen(
             },
             confirmButton = { TextButton(onClick = onSaveCategory) { Text("Hinzufügen") } },
             dismissButton = { TextButton(onClick = onDismissCategoryEditor) { Text("Abbrechen") } },
+        )
+    }
+    uiState.restaurantEditor?.let { editor ->
+        AlertDialog(
+            onDismissRequest = onDismissRestaurantEditor,
+            title = { Text("Restaurant") },
+            text = { Column {
+                OutlinedTextField(editor.name, onRestaurantNameChange, Modifier.fillMaxWidth(), label = { Text("Restaurantname") }, singleLine = true)
+                OutlinedTextField(editor.menuUrl, onMenuUrlChange, Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("Menü-Link") }, singleLine = true)
+                uiState.editorError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            } },
+            confirmButton = { TextButton(onClick = onSaveRestaurant) { Text("Speichern") } },
+            dismissButton = { TextButton(onClick = onDismissRestaurantEditor) { Text("Abbrechen") } },
+        )
+    }
+    uiState.orderEditor?.let { editor ->
+        AlertDialog(
+            onDismissRequest = onDismissOrderEditor,
+            title = { Text("Meine Bestellung") },
+            text = { Column {
+                OutlinedTextField(editor.dish, onOrderDishChange, Modifier.fillMaxWidth(), label = { Text("Gericht") }, singleLine = true)
+                OutlinedTextField(editor.note, onOrderNoteChange, Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("Hinweis (optional)") })
+                OutlinedTextField(editor.price, onOrderPriceChange, Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("Preis in Euro") }, singleLine = true)
+                uiState.editorError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            } },
+            confirmButton = { TextButton(onClick = onSaveOrder) { Text("Speichern") } },
+            dismissButton = { TextButton(onClick = onDismissOrderEditor) { Text("Abbrechen") } },
         )
     }
 }
