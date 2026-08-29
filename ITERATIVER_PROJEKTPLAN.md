@@ -458,6 +458,8 @@ Vor der Umsetzung müssen die folgenden Grundentscheidungen dokumentiert werden:
 - [ ] Wie werden Offline-Änderungen und Konflikte behandelt?
 - [ ] Welche Daten bleiben lokal und welche werden zentral gespeichert?
 - [ ] Welche Benachrichtigungen sind im MVP relevant?
+- [ ] Wie wird das bisherige lokale `Player`-Modell in das Cloud-/Gruppenmodell überführt?
+- [ ] Welche Rolle hat der Host in einer Gruppe, und welche Rechte müssen im MVP definiert werden?
 
 ### Mögliche technische Varianten
 
@@ -493,57 +495,103 @@ Vorteile: volle Kontrolle und hohe Flexibilität; Nachteil: höherer Aufwand und
 
 ### Mögliche Iterationen für Meilenstein 2
 
-#### Iteration M2-1 – Architekturentscheidung und Datenmodell
+#### Iteration M2-1 – Architekturentscheidung, Firebase-Setup und Datenmodell für mehrere Geräte
 
-- [ ] Zielarchitektur für Auth, Gruppen, Synchronisation und Offline-Verhalten dokumentieren
-- [ ] Nutzer-, Gruppen- und Rollenmodell definieren
-- [ ] Datenmodell für Abende, Spieler, Stimmen und Meldungen für mehrere Geräte erweitern
-- [ ] Room- und Cloud-Modelle sauber trennen
-- [ ] Datenschutz- und Sicherheitsanforderungen festlegen
+**Ziel:** Die technische Grundlage für die Mehrgeräte-Umsetzung wird geschaffen und dokumentiert.
+
+- [x] Firebase-Projekt anlegen und Android-App mit Firebase verbinden
+- [x] Firebase Authentication mit E-Mail/Passwort einrichten
+- [x] Architekturentscheidung festhalten: Firebase als Cloud-Stack, Firestore als Source of Truth, Room als lokaler Cache
+- [x] Nutzer- und Gruppenmodell definieren: ein Firebase-User ist zugleich der Spieler in einer Gruppe
+- [x] Übergang vom lokalen `Player`-Modell zum Cloud-/Gruppenmodell dokumentieren
+- [x] Gruppenbeitritt über Group ID definieren und dokumentieren
+- [x] Rollenmodell festlegen: Mitglied und Host im MVP
+- [x] Datenmodell für Gruppen, Mitglieder, Spielsabende, Stimmen, Meldungen und Bestellungen für mehrere Geräte definieren
+- [x] Room- und Firestore-Modelle sauber voneinander trennen
+- [x] Sicherheitsregeln und Datenschutzanforderungen für die private Gruppenstruktur dokumentieren
+- [x] Last-write-wins als Konfliktstrategie für den MVP festlegen
+- [x] MVP-Limits und nächste Schritte für Folgeiterationen festhalten
 
 Akzeptanzkriterien:
-- Die gewählte Architektur ist dokumentiert und verständlich.
-- Gruppen- und Benutzer-Identitäten sind im Datenmodell sauber abgebildet.
-- Offline- und Sync-Anforderungen sind explizit berücksichtigt.
+- Firebase-Setup ist dokumentiert und in der App konfiguriert.
+- Ein Gruppenmodell mit mehreren Gruppen pro Nutzer ist definiert.
+- Rollen, Gruppenzugriff und Identitäten sind sauber modelliert.
+- Der Übergang vom lokalen `Player`-Modell zum Cloud-/Gruppenmodell ist dokumentiert.
+- Firestore ist als Source of Truth und Room als lokaler Cache festgelegt.
+- Datenschutz, Sicherheitsregeln und Konfliktstrategie sind dokumentiert.
+- Die Iteration bildet die Grundlage für die nachfolgenden Auth-, Sync- und Benachrichtigungsiterationen.
 
 #### Iteration M2-2 – Authentifizierung und Gruppenverwaltung
 
-- [ ] Login/Register/Logout implementieren
-- [ ] Gruppen erstellen, beitreten, verlassen und verwalten
-- [ ] Mitglieder- und Rechtekonzept definieren
+**Ziel:** Nutzer können sich anmelden, Gruppen erstellen oder beitreten und als Mitglied oder Host in einer gemeinsamen Gruppe arbeiten.
+
+- [ ] Firebase Authentication mit E-Mail/Passwort einrichten und in die App integrieren
+- [ ] Login-, Registrierungs- und Logout-Flow implementieren
+- [ ] Gruppen erstellen, beitreten und verwalten
+- [ ] Mitglieder- und Rollenmodell definieren: Mitglied und Host
 - [ ] Spielerprofil oder Benutzerprofil im Kontext der Gruppe modellieren
-- [ ] Gruppencode, Einladung oder Invite-Mechanismus ergänzen
+- [ ] Gruppenbeitritt über Group ID umsetzen
+- [ ] Firestore-Datenmodell für Nutzer, Gruppen und Mitglieder definieren
+- [ ] Zugriffsbeschränkungen und Firestore-Rules für Gruppen und Mitglieder festlegen
+- [ ] Validierungs- und Fehlermeldungen für ungültige Eingaben ergänzen
+- [ ] Grundlage für spätere Synchronisations- und Benachrichtigungsiterationen vorbereiten
 
 Akzeptanzkriterien:
-- Mehrere Personen können auf derselben Gruppe arbeiten.
-- Zugriffsrechte sind klar und ohne Mehrdeutigkeit definiert.
-- Ein Nutzer ist eindeutig einer Gruppe und seinen Daten zugeordnet.
+- Nutzer können sich registrieren, anmelden und abmelden.
+- Ein Nutzer kann eine Gruppe erstellen und über eine Group ID beitreten.
+- Gruppenmitglieder sind einer Gruppe eindeutig zugeordnet.
+- Rollen sind klar als Mitglied oder Host definiert und nutzbar.
+- Nicht angemeldete Nutzer sehen keine Gruppen-/Mitgliederdaten.
+- Fehlermeldungen für ungültige E-Mail, leeren Gruppennamen oder falsche Group ID bestehen.
+- Die Iteration bildet die Grundlage für die nachfolgenden Sync- und Benachrichtigungsiterationen.
 
 #### Iteration M2-3 – Cloud-Synchronisation und Offline-Support
 
-- [ ] Room als lokalem Cache erweitern
-- [ ] Synchronisationslogik zwischen Device und Cloud definieren
-- [ ] Daten für mehrere Geräte übermitteln und konsistent zusammenführen
-- [ ] Konflikte bei gleichzeitigen Änderungen behandeln
-- [ ] Wiederherstellung nach Verbindungsabbruch sicherstellen
+**Ziel:** Die App bleibt auch ohne Internet nutzbar und synchronisiert Änderungen nach Wiederherstellung der Verbindung mit Firebase.
+
+- [ ] Firestore als Source of Truth festlegen und dokumentieren
+- [ ] Room als lokalen Cache erweitern und als Offline-Speicher verwenden
+- [ ] Repository-Schicht für lokale und Remote-Daten trennen
+- [ ] Synchronisationslogik zwischen App und Firestore definieren
+- [ ] Pending-, Fehler- und Erfolgszustände für Datensynchronisation ergänzen
+- [ ] Offline-Handling und Wiederaufnahme nach Verbindungsabbruch sicherstellen
+- [ ] Datenmodell um Synchronisationsfelder erweitern, etwa `createdAt`, `updatedAt`, `syncState`
+- [ ] Netzwerkstatus überwachen und passende UI-Feedbacks ergänzen
+- [ ] Konfliktstrategie „Last write wins“ für den MVP dokumentieren
+- [ ] Synchronisationsregeln für Gruppen, Mitglieder, Spieleabende, Stimmen, Meldungen und Bestellungen definieren
 
 Akzeptanzkriterien:
-- Änderungen werden nach Wiederherstellung der Verbindung übernommen.
-- Die App bleibt nutzbar, auch wenn keine Verbindung besteht.
-- Konfliktfälle sind dokumentiert und nachvollziehbar gelöst.
+- Die App kann Daten auch im Offline-Modus speichern und anzeigen.
+- Nach Wiederherstellung der Verbindung werden gespeicherte Änderungen synchronisiert.
+- Firestore ist als Source of Truth festgelegt und dokumentiert.
+- Room dient als lokaler Cache und bleibt konsistent zur Cloud.
+- Last-write-wins ist als Konfliktstrategie festgelegt.
+- Pending-/Fehlerzustände für Synchronisation sind sichtbar.
+- Die Iteration bildet die Grundlage für spätere Benachrichtigungs- und Gruppenkommunikationsfunktionen.
 
 #### Iteration M2-4 – Benachrichtigungen und echte Spielstatusmeldungen
 
-- [ ] Verspätungen und Absagen als echte Gruppenmeldungen versenden
-- [ ] Erinnerung oder Teilnahme-Status für Mitglieder anzeigen
-- [ ] Benachrichtigungen in der App und optional per Push umsetzen
-- [ ] Zustandslogik für „teilgenommen / verspätet / abgesagt“ vereinheitlichen
-- [ ] UX-Reihenfolge und Validierung der Gruppenkommunikation prüfen
+**Ziel:** Verspätungen und Absagen werden als echte Gruppenstatusmeldungen verarbeitet und an andere Gruppenmitglieder kommuniziert.
+
+- [ ] Statusmodell für Teilnahme, Verspätung und Absage erweitern: `attending`, `late`, `cancelled`, `unknown`
+- [ ] Firestore- und Room-Datenmodell für Statusmeldungen und Benachrichtigungen definieren
+- [ ] Firebase Cloud Messaging (FCM) einrichten und pro Nutzer FCM-Token speichern
+- [ ] Push-Benachrichtigungen für relevante Statusänderungen auslösen
+- [ ] In-App-Benachrichtigungen mit Lesestatus und Typ ergänzen
+- [ ] Meldungen für Mitglieder sichtbar machen und im Dashboard oder Benachrichtigungsbereich darstellen
+- [ ] Sicherheitsregeln für Statusmeldungen und Gruppenmitglieder definieren
+- [ ] Fehlerszenarien wie fehlender Token, Offline-Zustand und fehlende Verbindung berücksichtigen
+- [ ] Benachrichtigungslogik für Verspätungen, Absagen und Statusänderungen validieren
+- [ ] UI- und Nutzerfluss für echte Gruppennachrichten prüfen
 
 Akzeptanzkriterien:
-- Gruppenmitglieder erhalten den Statuswechsel in nachvollziehbarer Form.
-- Die Darstellung ist konsistent und nicht nur lokal simuliert.
-- Die Funktionalität ist auf mehreren Geräten prüfbar.
+- Ein Gruppenmitglied kann eine Verspätung oder Absage für einen Spieleabend melden.
+- Andere Gruppenmitglieder sehen die Meldung in der App.
+- Push-Benachrichtigungen werden für relevante Statusänderungen ausgelöst.
+- In-App-Benachrichtigungen sind sichtbar, kategorial unterscheidbar und lesbar.
+- Die Statuslogik unterscheidet sauber zwischen `attending`, `late`, `cancelled` und `unknown`.
+- Nicht berechtigte Nutzer können keine fremden Statusmeldungen sehen oder ändern.
+- Die Funktion ist mit der vorhandenen Firestore-/Room-Synchronisationsarchitektur kompatibel.
 
 ## 10. Teststrategie
 
@@ -635,4 +683,6 @@ Für jede begonnene Iteration wird dieser Block kopiert und ausgefüllt:
 
 **Iteration 10 – Restaurant und Bestellungen** wurde am 29.08.2026 abgeschlossen. Der Gastgeber kann Restaurantname und einen validierten Menü-Link für den kommenden Abend hinterlegen. Jede Person kann ihre eigene Bestellung mit Gericht, optionalem Hinweis und Preis erfassen, ändern oder löschen. Die gruppierte Übersicht weist Bestellungen Personen zu und summiert Preise ohne Gleitkommafehler als ganze Centbeträge. Room verwendet Schema-Version 5 mit expliziter Migration 4→5 und eindeutigen Beziehungen für Restaurant und Bestellungen.
 
-**Nächster Schritt:** Vor dem Start von Meilenstein 2 ist die Architekturentscheidung für Authentifizierung, Gruppenzugehörigkeit, Datenschutz, Offline-Verhalten, Synchronisation und Betriebskosten gemeinsam zu treffen und als Grundlage für die nächsten Iterationen festzuhalten.
+**Iteration M2-1 – Architekturentscheidung, Firebase-Setup und Datenmodell für mehrere Geräte** wurde am 29.08.2026 abgeschlossen. Firebase wurde in das Android-Projekt integriert, E-Mail/Passwort-Authentifizierung eingerichtet und ein Firebase-User kann sich registrieren bzw. anmelden. Ein neues Nutzerprofil wird in Firestore unter `/users/{uid}` persistiert. Die Architektur wurde dokumentiert: Firebase als Cloud-Stack, Firestore als Source of Truth, Room als lokaler Cache. Neben dem Datenmodell für Benutzer, Gruppen, Mitglieder und Spielabende wurden Sicherheitsregeln, Datenschutzanforderungen und die Konfliktstrategie „Last write wins“ festgehalten.
+
+**Nächster Schritt:** Mit Iteration M2-2 beginnt die echte Gruppenverwaltung: Login- und Registrierungsflow, Gruppen erstellen/beitreten, Mitgliederliste sowie Rollenmodell für Mitglied und Host werden als nächste Schicht umgesetzt.
