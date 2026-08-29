@@ -20,6 +20,7 @@ import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.boardgamerapp.data.repository.InMemoryGameNightRepository
 import com.example.boardgamerapp.data.repository.RoomGameNightRepository
+import com.example.boardgamerapp.ui.auth.AuthScreen
 import com.example.boardgamerapp.ui.dashboard.DashboardScreen
 import com.example.boardgamerapp.ui.dashboard.DashboardViewModel
 import com.example.boardgamerapp.ui.games.GamesScreen
@@ -32,9 +33,18 @@ import com.example.boardgamerapp.ui.players.PlayersViewModel
 import com.example.boardgamerapp.ui.review.ReviewScreen
 import com.example.boardgamerapp.ui.review.ReviewViewModel
 import com.example.boardgamerapp.ui.theme.BoardGamerAppTheme
+import com.google.firebase.auth.FirebaseAuth
 
 @Composable
 fun BoardGamerApp() {
+    val auth = FirebaseAuth.getInstance()
+    var signedIn by remember { mutableStateOf(auth.currentUser != null) }
+
+    if (!signedIn) {
+        AuthScreen(onSignedIn = { signedIn = true })
+        return
+    }
+
     val context = LocalContext.current
     val isPreview = LocalInspectionMode.current
     val repository = remember(context, isPreview) {
