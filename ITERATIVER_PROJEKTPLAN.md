@@ -31,23 +31,23 @@ Zunächst arbeitet die App vollständig lokal auf einem Gerät. Firebase oder ei
 
 ### Muss – MVP
 
-- [ ] Nächsten Spieleabend mit Datum, Uhrzeit, Gastgeber und Ort anzeigen
-- [ ] Spieler verwalten und Gastgeber turnusmäßig bestimmen
-- [ ] Brettspiele für einen Spieleabend vorschlagen
-- [ ] Pro Spieler genau eine Stimme abgeben oder ändern
-- [ ] Abstimmungsergebnis und Gewinner bestimmen
-- [ ] Eine Verspätungsmeldung lokal erfassen und anzeigen
+- [x] Nächsten Spieleabend mit Datum, Uhrzeit, Gastgeber und Ort anzeigen
+- [x] Spieler verwalten und Gastgeber turnusmäßig bestimmen
+- [x] Brettspiele für einen Spieleabend vorschlagen
+- [x] Pro Spieler genau eine Stimme abgeben oder ändern
+- [x] Abstimmungsergebnis und Gewinner bestimmen
+- [x] Eine Verspätungsmeldung lokal erfassen und anzeigen
 - [x] Einen abgeschlossenen Abend bewerten
-- [ ] Daten nach einem App-Neustart erhalten
+- [x] Daten nach einem App-Neustart erhalten
 
 ### Soll
 
-- [ ] Essensrichtung vorschlagen und darüber abstimmen
-- [ ] Mehrheitsentscheidung anzeigen
-- [ ] Restaurant und Link zur Speisekarte hinterlegen
-- [ ] Persönliche Bestellung erfassen
-- [ ] Bestellübersicht und Gesamtsumme für den Gastgeber anzeigen
-- [ ] Lokale Erinnerungen über Android Notifications senden
+- [x] Essensrichtung vorschlagen und darüber abstimmen
+- [x] Mehrheitsentscheidung anzeigen
+- [x] Restaurant und Link zur Speisekarte hinterlegen
+- [x] Persönliche Bestellung erfassen
+- [x] Bestellübersicht und Gesamtsumme für den Gastgeber anzeigen
+- [x] Lokale Erinnerungen über Android Notifications senden
 
 ### Kann
 
@@ -344,7 +344,89 @@ Akzeptanzkriterien:
 
 Ergebnis/Demo: Abgabefähige lokale Version der BoardGamerApp.
 
-## 8. Erweiterungsiterationen nach dem MVP
+## 8. Meilenstein 1 – Lokales MVP und lokale Produktreife
+
+Der erste Meilenstein umfasst die bisherige, lokal laufende Produktentwicklung der BoardGamerApp. Ziel ist ein stabiler MVP mit funktionaler Gruppenlogik auf einem Gerät, ohne externe Infrastruktur.
+
+### Iteration 0 – Projektbasis stabilisieren
+
+- [x] App auf Emulator oder Gerät starten
+- [x] App mit Gradle bauen
+- [x] Platzhalter `Greeting` entfernen
+- [x] App-Name, Paketname und sichtbare Texte prüfen
+- [x] Drei vorläufige Ziele definieren: Termin, Spiele, Profil
+- [x] Navigationszustand aus `MainActivity.kt` in ein eigenes UI-Paket verschieben
+- [x] Basis für Unit- und Compose-UI-Tests prüfen
+
+### Iteration 1 – Dashboard mit Beispieldaten
+
+- [x] `Player` und `GameNight` als Domain-Modelle anlegen
+- [x] Einen In-Memory-Repository-Vertrag definieren
+- [x] Beispieldaten für Spieler und nächsten Abend bereitstellen
+- [x] Dashboard mit Datum, Uhrzeit, Gastgeber und Adresse gestalten
+- [x] Lade-, Leer- und Fehlerzustand darstellen
+- [x] `DashboardViewModel` mit unveränderlichem UI-State verwenden
+
+### Iteration 2 – Spieler und Gastgeberrotation
+
+- [x] Spielerliste anzeigen
+- [x] Spieler lokal hinzufügen und bearbeiten
+- [x] Gastgeberreihenfolge festlegen
+- [x] Rotation als reine, testbare Kotlin-Funktion implementieren
+- [x] Nächsten Termin anlegen und Gastgeber automatisch einsetzen
+- [x] Sonderfälle testen: keine Spieler, ein Spieler, Ende der Reihenfolge
+
+### Iteration 3 – Spielvorschläge
+
+- [x] Spielvorschläge als Compose-Liste anzeigen
+- [x] Formular oder Dialog für Name und optionale Beschreibung bauen
+- [x] Vorschlag einem Spieler und Spieleabend zuordnen
+- [x] Validierung und Löschen eines eigenen Vorschlags ergänzen
+- [x] Leeren Zustand gestalten
+
+### Iteration 4 – Spieleabstimmung
+
+- [x] Aktiven Spieler für die lokale Demo auswählbar machen
+- [x] Pro Spieler und Abend genau eine Stimme speichern
+- [x] Bereits abgegebene Stimme änderbar machen
+- [x] Stimmen zählen und sortiert darstellen
+- [x] Gewinner beziehungsweise Gleichstand anzeigen
+- [x] Zählung und Eindeutigkeitsregel testen
+
+### Iteration 5 – Dauerhafte lokale Speicherung mit Room
+
+- [x] Room-Abhängigkeiten im Version Catalog ergänzen
+- [x] Entities, DAOs und `AppDatabase` implementieren
+- [x] Beziehungen und eindeutige Indizes definieren
+- [x] In-Memory-Repository durch Room-Repository ersetzen
+- [x] Seed-Daten nur für Debug/Demo kontrolliert bereitstellen
+- [x] DAO- und Migrationstests anlegen
+
+### Iteration 6 – Verspätungsmeldung
+
+- [x] Schnellaktion auf dem Dashboard ergänzen
+- [x] Auswahl für 10, 20, 30 oder freie Minuten anbieten
+- [x] Meldung mit Spieler und Zeitpunkt speichern
+- [x] Aktuelle Meldungen auf dem Dashboard anzeigen
+- [x] Klar kennzeichnen, dass Meldungen im lokalen MVP nur simuliert werden
+
+### Iteration 7 – Abschluss und Bewertung
+
+- [x] Statuswechsel zu `FINISHED` ermöglichen
+- [x] Bewertung für Gastgeber, Essen und Gesamtabend anbieten
+- [x] Optionales Kommentarfeld ergänzen
+- [x] Doppelte Bewertung pro Spieler und Abend verhindern
+- [x] Durchschnittswerte anzeigen
+
+### Iteration 8 – MVP-Qualität und Abgabe
+
+- [x] Eingabevalidierung und Fehlermeldungen vereinheitlichen
+- [x] Accessibility prüfen: Beschreibungen, Kontrast, Touch-Ziele, Schriftgrößen
+- [x] Kleine und große Displays sowie Hoch-/Querformat prüfen
+- [x] Tests für kritische Abläufe vervollständigen
+- [x] Demo-Daten und einen reproduzierbaren Vorführablauf vorbereiten
+- [x] README um Setup, Architektur, Funktionen und Grenzen ergänzen
+- [x] Release-Build erzeugen
 
 ### Iteration 9 – Essensabstimmung
 
@@ -360,17 +442,110 @@ Ergebnis/Demo: Abgabefähige lokale Version der BoardGamerApp.
 - [x] Bestellungen gruppiert anzeigen
 - [x] Gesamtsumme zuverlässig als Dezimal-/Cent-Wert berechnen
 
-### Iteration 11 – Mehrere Geräte
+## 9. Meilenstein 2 – Mehrere Geräte und gemeinsame Gruppen
 
-Vor Beginn dieser Iteration muss eine Architekturentscheidung dokumentiert werden. Zu klären sind Authentifizierung, Gruppenmitgliedschaft, Datenschutz, Konfliktauflösung, Offline-Verhalten und Betriebskosten. Erst danach wird Firebase oder eine Alternative ausgewählt.
+Im zweiten Meilenstein wird aus der lokalen App ein echtes Gruppenprodukt. Die bestehende Room-Architektur bleibt als lokaler Cache erhalten; darüber wird eine Cloud-basierte Synchronisationsschicht ergänzt.
 
-- [ ] Backend-Optionen vergleichen und Entscheidung festhalten
-- [ ] Benutzer- und Gruppenkonzept definieren
-- [ ] Room als Offline-Cache bewerten
-- [ ] Synchronisation implementieren
-- [ ] Verspätungen als echte Push-Nachrichten versenden
+Ziel: Mehrere Personen mit ihren Geräten sollen dieselbe Gruppe nutzen, Abende gemeinsam verwalten und Daten über mehrere Geräte hinweg konsistent sehen.
 
-## 9. Teststrategie
+### Architekturentscheidung und Ziele
+
+Vor der Umsetzung müssen die folgenden Grundentscheidungen dokumentiert werden:
+
+- [ ] Welche Plattform wird genutzt: Firebase, Supabase, eigener Backend oder Hybridmodell?
+- [ ] Wie werden Benutzer- und Gruppenkonzept modelliert?
+- [ ] Wie werden Daten zwischen Room und Cloud synchronisiert?
+- [ ] Wie werden Offline-Änderungen und Konflikte behandelt?
+- [ ] Welche Daten bleiben lokal und welche werden zentral gespeichert?
+- [ ] Welche Benachrichtigungen sind im MVP relevant?
+
+### Mögliche technische Varianten
+
+#### Variante A – Firebase
+
+- [ ] Firebase Auth für Benutzerkonto und Login
+- [ ] Firestore oder Realtime Database für Gruppen- und Abenddaten
+- [ ] Room als lokaler Cache und Offline-Store
+- [ ] Synchronisation mit Cloud-Listenern oder Batch-Uploads
+- [ ] Push-Benachrichtigungen für Verspätungen und Absagen
+
+Vorteile: schnell umsetzbar, gut für Android-Ökosystem, wenig eigenes Backend nötig.
+
+#### Variante B – Supabase
+
+- [ ] Supabase Auth für Login und Nutzerverwaltung
+- [ ] PostgreSQL mit Row Level Security für Gruppen und Zugriffe
+- [ ] Realtime-Subscriptions für gemeinsame Updates
+- [ ] Room als lokaler Cache für Offline-Nutzung
+- [ ] Realtime- oder Webhook-basierte Benachrichtigungen
+
+Vorteile: sehr gut für relationale Daten und Gruppenmodelle mit klarer Datenstruktur.
+
+#### Variante C – Eigener Backend
+
+- [ ] Authentifizierung, API-Design und Group-Management
+- [ ] Postgres oder andere persistente Datenbank
+- [ ] Synchronisations- und Conflict-Handling auf Serverseite
+- [ ] Room für lokale Persistenz und Offline-Support
+- [ ] Push-/Polling-Lösung für Benachrichtigungen
+
+Vorteile: volle Kontrolle und hohe Flexibilität; Nachteil: höherer Aufwand und Betrieb.
+
+### Mögliche Iterationen für Meilenstein 2
+
+#### Iteration M2-1 – Architekturentscheidung und Datenmodell
+
+- [ ] Zielarchitektur für Auth, Gruppen, Synchronisation und Offline-Verhalten dokumentieren
+- [ ] Nutzer-, Gruppen- und Rollenmodell definieren
+- [ ] Datenmodell für Abende, Spieler, Stimmen und Meldungen für mehrere Geräte erweitern
+- [ ] Room- und Cloud-Modelle sauber trennen
+- [ ] Datenschutz- und Sicherheitsanforderungen festlegen
+
+Akzeptanzkriterien:
+- Die gewählte Architektur ist dokumentiert und verständlich.
+- Gruppen- und Benutzer-Identitäten sind im Datenmodell sauber abgebildet.
+- Offline- und Sync-Anforderungen sind explizit berücksichtigt.
+
+#### Iteration M2-2 – Authentifizierung und Gruppenverwaltung
+
+- [ ] Login/Register/Logout implementieren
+- [ ] Gruppen erstellen, beitreten, verlassen und verwalten
+- [ ] Mitglieder- und Rechtekonzept definieren
+- [ ] Spielerprofil oder Benutzerprofil im Kontext der Gruppe modellieren
+- [ ] Gruppencode, Einladung oder Invite-Mechanismus ergänzen
+
+Akzeptanzkriterien:
+- Mehrere Personen können auf derselben Gruppe arbeiten.
+- Zugriffsrechte sind klar und ohne Mehrdeutigkeit definiert.
+- Ein Nutzer ist eindeutig einer Gruppe und seinen Daten zugeordnet.
+
+#### Iteration M2-3 – Cloud-Synchronisation und Offline-Support
+
+- [ ] Room als lokalem Cache erweitern
+- [ ] Synchronisationslogik zwischen Device und Cloud definieren
+- [ ] Daten für mehrere Geräte übermitteln und konsistent zusammenführen
+- [ ] Konflikte bei gleichzeitigen Änderungen behandeln
+- [ ] Wiederherstellung nach Verbindungsabbruch sicherstellen
+
+Akzeptanzkriterien:
+- Änderungen werden nach Wiederherstellung der Verbindung übernommen.
+- Die App bleibt nutzbar, auch wenn keine Verbindung besteht.
+- Konfliktfälle sind dokumentiert und nachvollziehbar gelöst.
+
+#### Iteration M2-4 – Benachrichtigungen und echte Spielstatusmeldungen
+
+- [ ] Verspätungen und Absagen als echte Gruppenmeldungen versenden
+- [ ] Erinnerung oder Teilnahme-Status für Mitglieder anzeigen
+- [ ] Benachrichtigungen in der App und optional per Push umsetzen
+- [ ] Zustandslogik für „teilgenommen / verspätet / abgesagt“ vereinheitlichen
+- [ ] UX-Reihenfolge und Validierung der Gruppenkommunikation prüfen
+
+Akzeptanzkriterien:
+- Gruppenmitglieder erhalten den Statuswechsel in nachvollziehbarer Form.
+- Die Darstellung ist konsistent und nicht nur lokal simuliert.
+- Die Funktionalität ist auf mehreren Geräten prüfbar.
+
+## 10. Teststrategie
 
 | Ebene | Was wird getestet? | Beispiele |
 |---|---|---|
@@ -389,7 +564,7 @@ Mindestens vor Abschluss jeder Iteration ausführen:
 
 Instrumentierte Tests werden zusätzlich auf einem Emulator oder Gerät ausgeführt, sobald entsprechende Tests vorhanden sind.
 
-## 10. Entscheidungen, Risiken und offene Fragen
+## 11. Entscheidungen, Risiken und offene Fragen
 
 ### Bereits entschieden
 
@@ -413,7 +588,7 @@ Instrumentierte Tests werden zusätzlich auf einem Emulator oder Gerät ausgefü
 - Zu viele Funktionen vor einem stabilen MVP gefährden die Abgabe.
 - Datums-, Zeit- und Geldwerte dürfen nicht als unstrukturierte Texte modelliert werden.
 
-## 11. Arbeitsprotokoll
+## 12. Arbeitsprotokoll
 
 Für jede begonnene Iteration wird dieser Block kopiert und ausgefüllt:
 
@@ -436,7 +611,7 @@ Für jede begonnene Iteration wird dieser Block kopiert und ausgefüllt:
 - Nächster konkreter Schritt:
 ```
 
-## 12. Aktueller Stand und nächster Schritt
+## 13. Aktueller Stand und nächster Schritt
 
 **Iteration 0 – Projektbasis stabilisieren** wurde am 24.08.2026 abgeschlossen und am 26.08.2026 bestätigt. Unit-Tests und Debug-Build waren erfolgreich; der Debug-Build wurde auf einem Emulator installiert und ohne Absturz kalt gestartet.
 
@@ -460,4 +635,4 @@ Für jede begonnene Iteration wird dieser Block kopiert und ausgefüllt:
 
 **Iteration 10 – Restaurant und Bestellungen** wurde am 29.08.2026 abgeschlossen. Der Gastgeber kann Restaurantname und einen validierten Menü-Link für den kommenden Abend hinterlegen. Jede Person kann ihre eigene Bestellung mit Gericht, optionalem Hinweis und Preis erfassen, ändern oder löschen. Die gruppierte Übersicht weist Bestellungen Personen zu und summiert Preise ohne Gleitkommafehler als ganze Centbeträge. Room verwendet Schema-Version 5 mit expliziter Migration 4→5 und eindeutigen Beziehungen für Restaurant und Bestellungen.
 
-**Nächster Schritt:** Vor Iteration 11 ist die vorgesehene Architekturentscheidung zu Konten, Gruppen, Datenschutz, Konflikten, Offline-Verhalten und Betriebskosten gemeinsam zu treffen.
+**Nächster Schritt:** Vor dem Start von Meilenstein 2 ist die Architekturentscheidung für Authentifizierung, Gruppenzugehörigkeit, Datenschutz, Offline-Verhalten, Synchronisation und Betriebskosten gemeinsam zu treffen und als Grundlage für die nächsten Iterationen festzuhalten.
