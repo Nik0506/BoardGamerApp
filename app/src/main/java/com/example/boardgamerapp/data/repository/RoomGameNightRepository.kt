@@ -29,12 +29,7 @@ import java.time.LocalDateTime
 class RoomGameNightRepository(
     private val database: AppDatabase,
     private val now: () -> LocalDateTime = LocalDateTime::now,
-    seedIfEmpty: Boolean = false,
 ) : BoardGamerRepository {
-
-    init {
-        if (seedIfEmpty) seedIfDatabaseIsEmpty()
-    }
 
     override fun getUpcomingGameNight(): Result<UpcomingGameNight?> = runCatching {
         val gameNight = findUpcomingGameNight() ?: return@runCatching null
@@ -372,62 +367,6 @@ class RoomGameNightRepository(
         .filter { !it.startsAt.isBefore(now()) }
         .minByOrNull { it.startsAt }
 
-    private fun seedIfDatabaseIsEmpty() {
-        if (
-            database.playerDao().count() != 0 ||
-            database.gameNightDao().count() != 0 ||
-            database.boardGameDao().count() != 0 ||
-            database.voteDao().count() != 0
-        ) {
-            return
-        }
-
-        val players = listOf(
-            PlayerEntity(
-                id = 1,
-                name = "Max Mustermann",
-                address = "Musterstraße 12, 33100 Paderborn",
-                hostOrder = 1,
-            ),
-            PlayerEntity(
-                id = 2,
-                name = "Lea Beispiel",
-                address = "Spielweg 4, 33102 Paderborn",
-                hostOrder = 2,
-            ),
-        )
-        val gameNight = GameNightEntity(
-            id = 1,
-            startsAt = LocalDateTime.of(2026, 8, 28, 19, 0),
-            hostId = 1,
-            location = "Musterstraße 12, 33100 Paderborn",
-            status = GameNightStatus.PLANNED,
-        )
-        database.playerDao().insert(players[0])
-        database.playerDao().insert(players[1])
-        database.gameNightDao().insert(gameNight)
-        database.boardGameDao().insert(
-            BoardGameEntity(
-                id = 1,
-                name = "Catan",
-                description = "Handel und Aufbau für drei bis vier Personen.",
-                suggestedByPlayerId = 1,
-                gameNightId = 1,
-            ),
-        )
-        database.boardGameDao().insert(
-            BoardGameEntity(
-                id = 2,
-                name = "Heat",
-                description = "Schnelles Autorennen mit taktischem Handmanagement.",
-                suggestedByPlayerId = 2,
-                gameNightId = 1,
-            ),
-        )
-        database.voteDao().insert(VoteEntity(id = 1, playerId = 1, boardGameId = 1, gameNightId = 1))
-        database.voteDao().insert(VoteEntity(id = 2, playerId = 2, boardGameId = 2, gameNightId = 1))
-    }
-
     private fun String.required(fieldName: String): String {
         val value = trim()
         require(value.isNotEmpty()) { "$fieldName darf nicht leer sein." }
@@ -477,7 +416,6 @@ class RoomGameNightRepository(
         fun create(context: Context): RoomGameNightRepository =
             RoomGameNightRepository(
                 database = AppDatabase.getInstance(context),
-                seedIfEmpty = true,
             )
     }
 }

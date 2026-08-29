@@ -33,10 +33,16 @@ enum class AppDestination(
         description = "Schließt Spieleabende ab und bewertet sie.",
         icon = R.drawable.ic_favorite,
     ),
+    GROUPS(
+        label = "Gruppen",
+        title = "Gruppen",
+        description = "Erstelle oder tritt einer Spielgruppe bei.",
+        icon = R.drawable.ic_account_box,
+    ),
     PROFILE(
         label = "Profil",
         title = "Profil",
-        description = "Hier verwaltest du bald dein Profil und die Spielgruppe.",
+        description = "Hier findest du deine Kontoinformationen und Logout.",
         icon = R.drawable.ic_account_box,
     ),
 }

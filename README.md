@@ -1,6 +1,6 @@
 # BoardGamerApp
 
-Eine Android-App zur Organisation regelmäßiger Brettspielabende. Das Projekt wird iterativ entwickelt; der aktuelle Stand zeigt den nächsten Spieleabend mit Datum, Uhrzeit, Gastgeber und Adresse aus einer lokalen Room-Datenbank.
+Eine Android-App zur Organisation regelmäßiger Brettspielabende. Das Projekt wird iterativ entwickelt; der aktuelle Stand umfasst sowohl das lokale MVP als auch den Start einer gruppenfähigen Mehrgeräte-Architektur mit Firebase.
 
 ## Aktueller Funktionsumfang
 
@@ -35,8 +35,13 @@ Eine Android-App zur Organisation regelmäßiger Brettspielabende. Das Projekt w
 - Kontrollierte Demo-Daten beim ersten Start einer leeren Datenbank
 - Gemeinsames, austauschbares Repository mit Room als produktiver Datenquelle
 - ViewModel-basierte Zustandsverwaltung
+- Firebase-Setup für Authentication und Firestore
+- E-Mail/Passwort-Registrierung und Login in der App
+- Nutzerprofil- Speicherung in Firestore unter `/users/{uid}`
 
 Die Kernabläufe von Terminplanung, Gastgeberrotation, Spiel- und Essensabstimmung, Restaurant- und Bestellplanung, lokaler Verspätungsmeldung und Bewertung funktionieren. Ein Spieleabend kann lokal von jedem Gruppenmitglied abgeschlossen und danach namentlich bewertet werden. Beim ersten Start wird eine leere Datenbank kontrolliert mit Demo-Daten befüllt; vorhandene Daten werden nicht überschrieben. Die Datenbank verwendet Schema-Version 5. Die Erweiterungen werden über die expliziten Migrationen `1 -> 2`, `2 -> 3`, `3 -> 4` und `4 -> 5` ergänzt; es gibt keine destructive fallback migration.
+
+Im Mehrgeräte-Teil ist die Grundlage für MS2-1 umgesetzt: Firebase Authentication und Firestore sind integriert, und ein Benutzerprofil wird in Firestore gespeichert. Die lokale App zeigt einen Auth-Gate an, bevor die lokale App-Navigation sichtbar wird.
 
 ## Technik
 
@@ -45,6 +50,8 @@ Die Kernabläufe von Terminplanung, Gastgeberrotation, Spiel- und Essensabstimmu
 - Material 3
 - ViewModel
 - Room / SQLite
+- Firebase Authentication
+- Firestore
 - Gradle Kotlin DSL
 - `minSdk 24`, `targetSdk 36`
 
@@ -53,7 +60,8 @@ Die Kernabläufe von Terminplanung, Gastgeberrotation, Spiel- und Essensabstimmu
 ### Voraussetzungen
 
 - Android Studio mit Android SDK 36.1
-- JDK 21; das mit Android Studio gebündelte JDK kann verwendet werden
+- JDK 21; das mit Android Studio gebündete JDK kann verwendet werden
+- Firebase-Projekt mit Authentication und Firestore
 - ein Emulator oder Gerät ab Android 7.0/API 24 für instrumentierte Tests
 
 Projektordner in Android Studio öffnen und **File → Sync Project with Gradle Files** ausführen. Für die Kommandozeile muss `JAVA_HOME` auf ein kompatibles JDK zeigen.
@@ -81,27 +89,33 @@ Bei einer leeren Debug-Datenbank werden Max und Lea, der Spieleabend am 28.08.20
 7. Für Max und Lea unterschiedliche Bewertungen samt optionalem Kommentar speichern.
 8. Die angezeigten Durchschnittswerte prüfen, die App vollständig schließen und erneut öffnen.
 9. Kontrollieren, dass Spieler, Stimmen, Restaurant, Bestellungen, Meldungen, Abschlussstatus und Bewertungen erhalten geblieben sind.
+10. Im neuen Mehrgeräte-Teil: registrieren oder anmelden, dann prüfen, dass der Nutzer in Firestore unter `/users/{uid}` gespeichert wurde.
 
 ## Architektur
 
-Die Compose-Oberfläche kommuniziert über ViewModels und Repository-Verträge mit den Daten. Die produktive lokale Implementierung verwendet Room; für Compose-Previews und isolierte Tests steht weiterhin das In-Memory-Repository zur Verfügung. Das `LateNoticeRepository` kapselt das Laden der Meldungen des kommenden Spieleabends und das Speichern mit Spieler, Termin, Minuten und Erstellzeitpunkt. Room erzwingt die Zuordnung über Fremdschlüssel.
+Die Compose-Oberfläche kommuniziert über ViewModels und Repository-Verträge mit den Daten. Die produktive lokale Implementierung verwendet Room; für Compose-Previews und isolierte Tests steht weiterhin das In-Memory-Repository zur Verfügung. Firebase Authentication und Firestore ergänzen das lokale MVP jetzt um eine Multi-User-/Gruppenarchitektur.
 
 ```text
 Compose UI → ViewModel → Repository → Room / SQLite
                                       ↘ In-Memory (Preview/Test)
+
+Firebase Auth / Firestore → User- und Gruppenmodell für Mehrgeräte-Umsetzung
 ```
 
 Die Domain-Modelle bleiben unabhängig von Room. Datenbank-Entities werden im Repository in Domain-Modelle umgewandelt. Spielstimmen, Essensstimmen, Bestellungen und Bewertungen besitzen jeweils einen eindeutigen Index aus Spieler und Spieleabend. Preise werden als ganze Centbeträge gespeichert und erst zur Anzeige formatiert. Restaurant und Essenskategorien gehören zu genau einem Abend. Bewertungen sind nur nach dem Statuswechsel zu `FINISHED` zulässig und müssen in allen drei Pflichtkategorien zwischen 1 und 5 liegen.
 
-## Grenzen des lokalen MVP
+Die Mehrgeräte-Architektur beginnt mit einer klaren Trennung zwischen lokaler App-Logik und Firestore-User-/Gruppenmodell. Das lokale `Player`-Modell wird in einer späteren Iteration in ein Cloud-/Gruppenmodell überführt; im aktuellen Stand ist der Nutzer-Login und das Anlegen des Nutzerprofils in Firestore erfüllt.
 
-- Alle Daten liegen ausschließlich auf einem Gerät; es gibt noch keine Konten, Gruppen oder Synchronisation.
-- Verspätungsmeldungen werden nur lokal gespeichert und nicht an andere Personen gesendet.
+## Grenzen des lokalen MVP und der aktuellen Mehrgeräte-Phase
+
+- Alle bisherigen Daten liegen ausschließlich auf einem Gerät; die Cloud-Lösung erweitert die App erst schrittweise.
+- Verspätungsmeldungen werden weiterhin lokal gespeichert und nicht an andere Personen gesendet.
 - Die Erinnerung an fehlende Essensstimmen ist eine lokale Übersicht und versendet keine Benachrichtigung.
-- Der aktive Spieler wird in der Demo manuell ausgewählt; es gibt keine Anmeldung.
+- Der aktive Spieler wird in der Demo manuell ausgewählt; es gibt noch keine echte Gruppen- oder Nutzerauswahl via Cloud.
 - Jedes Gruppenmitglied kann einen Abend lokal abschließen.
 - Bewertungen sind dem ausgewählten Spieler zugeordnet und nicht anonym.
 - Demo-Daten werden nur in einer vollständig leeren Debug-Datenbank angelegt.
+- Die Cloud-Variante ist noch nicht vollständig auf Gruppen- und Sync-Logik erweitert.
 - Der Release-Build ist technisch erzeugbar, benötigt für eine Veröffentlichung aber noch einen produktiven Signierschlüssel.
 
 ## Planung
