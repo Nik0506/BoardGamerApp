@@ -102,7 +102,11 @@ interface PlayerRepository {
 
     fun movePlayer(id: Long, direction: MoveDirection): Result<List<Player>>
 
-    fun createNextGameNight(): Result<UpcomingGameNight>
+    fun createNextGameNight(
+        startsAt: java.time.LocalDateTime? = null,
+        preferredHostUid: String? = null,
+        memberOrderOverride: List<String>? = null,
+    ): Result<UpcomingGameNight>
 }
 
 interface GameSuggestionRepository {

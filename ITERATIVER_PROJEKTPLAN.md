@@ -105,6 +105,25 @@ Die Iterationen 0 bis 10 wurden zunächst lokal umgesetzt und dienten zur Erarbe
 - [x] README und Projektplan auf den Online-Stand bringen
 - [ ] Vollständige Firebase-Integration mit einem Testprojekt oder Emulator automatisieren
 
+## 6. Meilenstein 3 – Spieleabend planen mit Optionen
+
+### Iteration MS3-1 – Dialog für Termin und Gastgeber
+
+- [x] Dialog für „Nächsten Spieleabend planen“ ergänzen
+- [x] Bestätigen und Abbrechen im Dialog umsetzen
+- [x] Standardtermin auf zwei Wochen in die Zukunft vordefinieren
+- [x] Datum im Format DD.MM.YYYY anzeigen
+- [x] Gastgeber aus vorhandenen Gruppenmitgliedern per Dropdown wählen
+- [x] Reihenfolge nach bevorzugtem Gastgeber neu rotieren
+- [x] Auswahl und Termin in Firestore als neuer Spieleabend speichern
+- [x] Gruppen-ID als kopierbares Feld in der Detailansicht bereitstellen
+
+Akzeptanzkriterien:
+
+- Der Benutzer kann einen neuen Spieleabend mit Datum und Gastgeber in einem Dialog planen.
+- Der gewählte Host wird vor der normalen Reihenfolge platziert und danach abgespeichert.
+- Die Angabe ist in der Gruppe sofort nachvollziehbar und kann per Kopieren geteilt werden.
+
 ### Iteration M2-3 – Online-Robustheit
 
 Ziel: Online-Fehler werden in jedem Bereich verständlich, nicht blockierend und reproduzierbar behandelt.
@@ -132,7 +151,7 @@ Akzeptanzkriterien:
 - [ ] Push- und In-App-Benachrichtigungen umsetzen
 - [ ] Berechtigungen und Datenschutz prüfen
 
-## 6. Teststrategie
+## 7. Teststrategie
 
 | Ebene | Zweck |
 |---|---|
@@ -152,7 +171,7 @@ Vor Abschluss jeder Iteration:
 
 Zusätzlich sind Bildschirmdrehung, fehlende Netzwerkverbindung und ein zweites Benutzerkonto zu prüfen.
 
-## 7. Risiken und offene Punkte
+## 8. Risiken und offene Punkte
 
 - Das derzeit synchrone Repository kann die Oberfläche während langsamer Netzaufrufe blockieren.
 - Firestore-Sicherheitsregeln sind noch nicht im Repository versioniert und automatisiert geprüft.
@@ -160,6 +179,6 @@ Zusätzlich sind Bildschirmdrehung, fehlende Netzwerkverbindung und ein zweites 
 - Stabile numerische IDs werden teilweise aus Firebase-Dokument-IDs abgeleitet; langfristig sollten Domain-IDs als Strings modelliert werden.
 - Push-Benachrichtigungen benötigen neben der App auch eine vertrauenswürdige serverseitige Auslösung.
 
-## 8. Nächster Schritt
+## 9. Nächster Schritt
 
-Nach erfolgreicher technischer Prüfung dieser Konsistenz-Iteration folgt **Iteration M2-3 – Online-Robustheit**. Priorität haben nicht blockierende Firebase-Aufrufe, ein zentraler Verbindungszustand sowie versionierte und getestete Firestore-Sicherheitsregeln.
+Nach erfolgreicher technischer Prüfung der aktuellen MS3-Umsetzung folgt **Iteration M2-3 – Online-Robustheit**. Priorität haben nicht blockierende Firebase-Aufrufe, ein zentraler Verbindungszustand sowie versionierte und getestete Firestore-Sicherheitsregeln.

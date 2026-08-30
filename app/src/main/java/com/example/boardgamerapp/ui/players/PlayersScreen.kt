@@ -20,6 +20,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -74,13 +76,31 @@ fun PlayersScreen(
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            groupId?.takeIf { it.isNotBlank() }?.let {
-                Text(
-                    text = "Gruppen-ID: $it",
-                    modifier = Modifier.padding(top = 8.dp),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                )
+            groupId?.takeIf { it.isNotBlank() }?.let { currentGroupId ->
+                val clipboardManager = LocalClipboardManager.current
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    OutlinedTextField(
+                        value = currentGroupId,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Gruppen-ID") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                    )
+                    TextButton(
+                        onClick = {
+                            clipboardManager.setText(AnnotatedString(currentGroupId))
+                        },
+                        modifier = Modifier.padding(start = 8.dp),
+                    ) {
+                        Text("Kopieren")
+                    }
+                }
             }
         }
 
