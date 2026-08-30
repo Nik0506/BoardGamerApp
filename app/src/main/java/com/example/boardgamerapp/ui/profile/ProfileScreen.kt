@@ -18,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.google.firebase.auth.FirebaseAuth
@@ -32,8 +33,8 @@ fun ProfileScreen(
     modifier: Modifier = Modifier,
 ) {
     val currentUser = FirebaseAuth.getInstance().currentUser
-    var displayName by remember(currentUser?.uid) { mutableStateOf(currentUser?.displayName ?: "") }
-    var address by remember(currentUser?.uid) { mutableStateOf("") }
+    var displayName by rememberSaveable(currentUser?.uid) { mutableStateOf(currentUser?.displayName ?: "") }
+    var address by rememberSaveable(currentUser?.uid) { mutableStateOf("") }
 
     LaunchedEffect(currentUser?.uid) {
         val uid = currentUser?.uid ?: return@LaunchedEffect

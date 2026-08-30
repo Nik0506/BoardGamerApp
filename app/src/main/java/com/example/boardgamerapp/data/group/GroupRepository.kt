@@ -68,6 +68,9 @@ class GroupRepository(
             .set(mapOf("groupId" to groupId, "joinedAt" to Timestamp.now(), "role" to GroupRole.HOST.name))
             .await()
 
+        firestore.collection("users").document(currentUser.uid)
+            .update("activeGroupId", groupId, "updatedAt", Timestamp.now()).await()
+
         group
     }
 
@@ -111,6 +114,9 @@ class GroupRepository(
             .set(mapOf("groupId" to groupId, "joinedAt" to Timestamp.now(), "role" to GroupRole.MEMBER.name))
             .await()
 
+        firestore.collection("users").document(currentUser.uid)
+            .update("activeGroupId", groupId, "updatedAt", Timestamp.now()).await()
+
         val data = snapshot.data ?: error("Group data missing.")
         Group.fromMap(data, groupId)
     }
@@ -119,6 +125,15 @@ class GroupRepository(
         val snapshot = firestore.collection("groups").document(groupId).get().await()
         val data = snapshot.data ?: error("Group not found.")
         Group.fromMap(data, groupId)
+    }
+
+    suspend fun selectGroup(groupId: String): Result<Unit> = runCatching {
+        val currentUser = auth.currentUser ?: error("User not authenticated.")
+        val membership = firestore.collection("groups").document(groupId)
+            .collection("members").document(currentUser.uid).get().await()
+        require(membership.exists()) { "Du bist kein Mitglied dieser Gruppe." }
+        firestore.collection("users").document(currentUser.uid)
+            .update("activeGroupId", groupId, "updatedAt", Timestamp.now()).await()
     }
 
     suspend fun getGroupsForCurrentUser(): Result<List<Group>> = runCatching {
@@ -134,29 +149,6 @@ class GroupRepository(
             val groupId = groupDoc.id
             if (groupId.isNotBlank()) {
                 matchingGroups.add(groupId)
-            }
-        }
-
-        if (matchingGroups.isEmpty()) {
-            val memberMatches = firestore.collectionGroup("members")
-                .whereEqualTo("uid", currentUser.uid)
-                .get()
-                .await()
-            for (memberDoc in memberMatches.documents) {
-                val groupId = memberDoc.reference.parent.parent?.id
-                if (!groupId.isNullOrBlank()) {
-                    matchingGroups.add(groupId)
-                }
-            }
-        }
-
-        if (matchingGroups.isEmpty()) {
-            val createdGroups = firestore.collection("groups")
-                .whereEqualTo("createdBy", currentUser.uid)
-                .get()
-                .await()
-            for (groupDoc in createdGroups.documents) {
-                matchingGroups.add(groupDoc.id)
             }
         }
 

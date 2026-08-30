@@ -7,14 +7,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -30,7 +28,6 @@ import com.example.boardgamerapp.ui.theme.BoardGamerAppTheme
 @Composable
 fun GamesScreen(
     uiState: GamesUiState,
-    onSelectPlayer: (Long) -> Unit,
     onAddSuggestion: () -> Unit,
     onDeleteSuggestion: (Long) -> Unit,
     onCastVote: (Long) -> Unit,
@@ -63,25 +60,13 @@ fun GamesScreen(
             )
         }
 
-        if (uiState.players.isNotEmpty()) {
-            item {
-                Text(
-                    text = "Wer verwendet die App?",
-                    style = MaterialTheme.typography.labelLarge,
-                )
-                LazyRow(
-                    modifier = Modifier.padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    items(uiState.players, key = { it.id }) { player ->
-                        FilterChip(
-                            selected = player.id == uiState.selectedPlayerId,
-                            onClick = { onSelectPlayer(player.id) },
-                            label = { Text(player.name) },
-                        )
-                    }
-                }
-            }
+        item {
+            Text(
+                uiState.players.firstOrNull { it.id == uiState.selectedPlayerId }
+                    ?.let { "Angemeldet als ${it.name}" }
+                    ?: "Dein Konto ist kein Mitglied der aktiven Gruppe.",
+                style = MaterialTheme.typography.labelLarge,
+            )
         }
 
         uiState.message?.let { message ->
@@ -342,7 +327,6 @@ private fun GamesScreenPreview() {
                 gameNightDate = "Freitag, 28. August 2026",
                 suggestions = emptyList(),
             ),
-            onSelectPlayer = {},
             onAddSuggestion = {},
             onDeleteSuggestion = {},
             onCastVote = {},

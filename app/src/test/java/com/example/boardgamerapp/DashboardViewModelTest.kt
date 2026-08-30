@@ -1,7 +1,6 @@
 package com.example.boardgamerapp
 
 import com.example.boardgamerapp.data.repository.GameNightRepository
-import com.example.boardgamerapp.data.repository.InMemoryGameNightRepository
 import com.example.boardgamerapp.data.repository.UpcomingGameNight
 import com.example.boardgamerapp.domain.model.GameNight
 import com.example.boardgamerapp.domain.model.GameNightStatus
@@ -9,14 +8,35 @@ import com.example.boardgamerapp.domain.model.Player
 import com.example.boardgamerapp.ui.dashboard.DashboardUiState
 import com.example.boardgamerapp.ui.dashboard.DashboardViewModel
 import java.time.LocalDateTime
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.Before
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class DashboardViewModelTest {
+    private val dispatcher = StandardTestDispatcher()
+
+    @Before
+    fun setUp() {
+        Dispatchers.setMain(dispatcher)
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
 
     @Test
-    fun `maps repository data to content state`() {
+    fun `maps repository data to content state`() = runTest(dispatcher) {
         val host = Player(1, "Max Mustermann", "Musterstraße 12", 1)
         val gameNight = GameNight(
             id = 1,
@@ -27,7 +47,9 @@ class DashboardViewModelTest {
         )
         val viewModel = DashboardViewModel(
             repository = repositoryReturning(Result.success(UpcomingGameNight(gameNight, host))),
+            ioDispatcher = dispatcher,
         )
+        advanceUntilIdle()
 
         val state = viewModel.uiState as DashboardUiState.Content
 
@@ -37,66 +59,23 @@ class DashboardViewModelTest {
     }
 
     @Test
-    fun `maps missing game night to empty state`() {
-        val viewModel = DashboardViewModel(repositoryReturning(Result.success(null)))
+    fun `maps missing game night to empty state`() = runTest(dispatcher) {
+        val viewModel = DashboardViewModel(repositoryReturning(Result.success(null)), ioDispatcher = dispatcher)
+        advanceUntilIdle()
 
         assertEquals(DashboardUiState.Empty, viewModel.uiState)
     }
 
     @Test
-    fun `maps repository failure to error state`() {
+    fun `maps repository failure to error state`() = runTest(dispatcher) {
         val viewModel = DashboardViewModel(
             repositoryReturning(Result.failure(IllegalStateException("Testfehler"))),
+            ioDispatcher = dispatcher,
         )
+        advanceUntilIdle()
 
         assertTrue(viewModel.uiState is DashboardUiState.Error)
         assertEquals("Testfehler", (viewModel.uiState as DashboardUiState.Error).message)
-    }
-
-    @Test
-    fun `saves selected player custom late notice and reloads dashboard`() {
-        val max = Player(1, "Max", "Adresse 1", 1)
-        val lea = Player(2, "Lea", "Adresse 2", 2)
-        val gameNight = GameNight(
-            id = 1,
-            startsAt = LocalDateTime.of(2026, 8, 28, 19, 0),
-            hostId = max.id,
-            location = max.address,
-            status = GameNightStatus.PLANNED,
-        )
-        val repository = InMemoryGameNightRepository(
-            players = listOf(max, lea),
-            gameNights = listOf(gameNight),
-            now = { LocalDateTime.of(2026, 8, 27, 12, 0) },
-        )
-        val viewModel = DashboardViewModel(repository, repository, repository)
-
-        viewModel.selectPlayer(lea.id)
-        viewModel.beginLateNotice()
-        viewModel.updateLateNoticeCustomMinutes("25")
-        viewModel.saveLateNotice()
-
-        val state = viewModel.uiState as DashboardUiState.Content
-        assertEquals(lea.id, state.selectedPlayerId)
-        assertEquals(25, state.lateNotices.single().minutes)
-        assertEquals("Lea", state.lateNotices.single().playerName)
-        assertEquals("Verspätungsmeldung wurde lokal gespeichert.", state.message)
-    }
-
-    @Test
-    fun `shows clear error for non positive custom minutes`() {
-        val repository = InMemoryGameNightRepository(
-            now = { LocalDateTime.of(2026, 8, 27, 12, 0) },
-        )
-        val viewModel = DashboardViewModel(repository, repository, repository)
-
-        viewModel.beginLateNotice()
-        viewModel.updateLateNoticeCustomMinutes("-5")
-        viewModel.saveLateNotice()
-
-        val state = viewModel.uiState as DashboardUiState.Content
-        assertEquals("Gib eine positive Minutenzahl ein.", state.editor?.errorMessage)
-        assertTrue(state.lateNotices.isEmpty())
     }
 
     private fun repositoryReturning(

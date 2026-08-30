@@ -22,16 +22,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.boardgamerapp.data.group.Group
 import com.example.boardgamerapp.data.group.GroupMember
 import com.example.boardgamerapp.data.group.GroupRepository
 import com.example.boardgamerapp.data.repository.FirebaseGameNightRepository
 import com.example.boardgamerapp.data.repository.MoveDirection
-import com.example.boardgamerapp.data.repository.RoomGameNightRepository
 import com.example.boardgamerapp.ui.players.PlayerUiModel
 import com.example.boardgamerapp.ui.players.PlayersScreen
 import com.example.boardgamerapp.ui.players.PlayersUiState
@@ -43,21 +42,19 @@ import kotlinx.coroutines.withContext
 @Composable
 fun GroupManagementScreen(
     onGroupReady: () -> Unit,
-    onSignedOut: () -> Unit,
+    userUid: String,
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
     val groupRepository = remember { GroupRepository() }
-    val localGameNightRepository = remember(context) { RoomGameNightRepository.create(context) }
-    val gameNightRepository = remember(localGameNightRepository) { FirebaseGameNightRepository(localGameNightRepository) }
-    var groupName by remember { mutableStateOf("") }
-    var groupId by remember { mutableStateOf("") }
-    var errorText by remember { mutableStateOf<String?>(null) }
+    val gameNightRepository = remember { FirebaseGameNightRepository() }
+    var groupName by rememberSaveable(userUid) { mutableStateOf("") }
+    var groupId by rememberSaveable(userUid) { mutableStateOf("") }
+    var errorText by rememberSaveable(userUid) { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
     var userGroups by remember { mutableStateOf<List<Group>>(emptyList()) }
-    var selectedGroupId by remember { mutableStateOf<String?>(null) }
+    var selectedGroupId by rememberSaveable(userUid) { mutableStateOf<String?>(null) }
     var members by remember { mutableStateOf<List<GroupMember>>(emptyList()) }
-    var showCreateJoinOptions by remember { mutableStateOf(false) }
+    var showCreateJoinOptions by rememberSaveable(userUid) { mutableStateOf(false) }
 
     fun loadMembers(groupIdToLoad: String) {
         CoroutineScope(Dispatchers.Main).launch {
@@ -82,8 +79,12 @@ fun GroupManagementScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(userUid) {
         loadUserGroups()
+    }
+
+    LaunchedEffect(selectedGroupId) {
+        selectedGroupId?.let(::loadMembers)
     }
 
     val selectedGroup = userGroups.firstOrNull { it.id == selectedGroupId }
@@ -228,8 +229,15 @@ fun GroupManagementScreen(
                                             .fillMaxWidth()
                                             .padding(vertical = 4.dp)
                                             .clickable {
-                                                selectedGroupId = group.id
-                                                loadMembers(group.id)
+                                                CoroutineScope(Dispatchers.Main).launch {
+                                                    groupRepository.selectGroup(group.id).fold(
+                                                        onSuccess = {
+                                                            selectedGroupId = group.id
+                                                            loadMembers(group.id)
+                                                        },
+                                                        onFailure = { errorText = it.message ?: "Gruppe konnte nicht geöffnet werden." },
+                                                    )
+                                                }
                                             },
                                     ) {
                                         Column(
@@ -287,6 +295,7 @@ fun GroupManagementScreen(
                     val selectedGroupIdValue = selectedGroupId ?: return@PlayersScreen
                     CoroutineScope(Dispatchers.Main).launch {
                         val result = withContext(Dispatchers.IO) {
+                            groupRepository.selectGroup(selectedGroupIdValue).getOrThrow()
                             groupRepository.updateMemberOrder(selectedGroupIdValue, reordered.map { it.uid })
                         }
                         result.fold(
@@ -302,6 +311,7 @@ fun GroupManagementScreen(
                     errorText = null
                     CoroutineScope(Dispatchers.Main).launch {
                         val result = withContext(Dispatchers.IO) {
+                            selectedGroupId?.let { groupRepository.selectGroup(it).getOrThrow() }
                             gameNightRepository.createNextGameNight()
                         }
                         result.fold(
