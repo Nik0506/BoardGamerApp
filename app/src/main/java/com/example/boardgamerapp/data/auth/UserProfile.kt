@@ -6,6 +6,7 @@ data class UserProfile(
     val uid: String = "",
     val email: String? = null,
     val displayName: String? = null,
+    val address: String? = null,
     val createdAt: Timestamp? = null,
     val updatedAt: Timestamp? = null,
 ) {
@@ -13,6 +14,7 @@ data class UserProfile(
         "uid" to uid,
         "email" to email,
         "displayName" to displayName,
+        "address" to address,
         "createdAt" to createdAt,
         "updatedAt" to updatedAt,
     )
@@ -22,6 +24,7 @@ data class UserProfile(
             uid = data["uid"] as? String ?: "",
             email = data["email"] as? String,
             displayName = data["displayName"] as? String,
+            address = data["address"] as? String,
             createdAt = data["createdAt"] as? Timestamp,
             updatedAt = data["updatedAt"] as? Timestamp,
         )

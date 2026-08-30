@@ -38,6 +38,9 @@ fun PlayersScreen(
     onSavePlayer: () -> Unit,
     onDismissEditor: () -> Unit,
     onDismissMessage: () -> Unit,
+    screenTitle: String = "Spielgruppe",
+    groupId: String? = null,
+    onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -47,9 +50,21 @@ fun PlayersScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 24.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (onBack != null) {
+                    TextButton(onClick = onBack) {
+                        Text("Zurück")
+                    }
+                }
+            }
             Text(
-                text = "Spielgruppe",
-                modifier = Modifier.padding(top = 24.dp),
+                text = screenTitle,
+                modifier = Modifier.padding(top = 8.dp),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
             )
@@ -59,6 +74,14 @@ fun PlayersScreen(
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            groupId?.takeIf { it.isNotBlank() }?.let {
+                Text(
+                    text = "Gruppen-ID: $it",
+                    modifier = Modifier.padding(top = 8.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
         }
 
         uiState.message?.let { message ->
@@ -109,7 +132,6 @@ fun PlayersScreen(
                     player = player,
                     canMoveUp = index > 0,
                     canMoveDown = index < uiState.players.lastIndex,
-                    onEdit = { onEditPlayer(player.id) },
                     onMoveUp = { onMovePlayer(player.id, MoveDirection.UP) },
                     onMoveDown = { onMovePlayer(player.id, MoveDirection.DOWN) },
                 )
@@ -117,12 +139,6 @@ fun PlayersScreen(
         }
 
         item {
-            Button(
-                onClick = onAddPlayer,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Spieler hinzufügen")
-            }
             OutlinedButton(
                 onClick = onCreateNextGameNight,
                 modifier = Modifier
@@ -151,7 +167,6 @@ private fun PlayerCard(
     player: PlayerUiModel,
     canMoveUp: Boolean,
     canMoveDown: Boolean,
-    onEdit: () -> Unit,
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
 ) {
@@ -179,9 +194,6 @@ private fun PlayerCard(
                 }
                 TextButton(onClick = onMoveDown, enabled = canMoveDown) {
                     Text("Nach unten")
-                }
-                TextButton(onClick = onEdit) {
-                    Text("Bearbeiten")
                 }
             }
         }
@@ -270,10 +282,7 @@ private fun PlayersScreenPreview() {
         PlayersScreen(
             uiState = PlayersUiState(
                 isLoading = false,
-                players = listOf(
-                    PlayerUiModel(1, "Max Mustermann", "Musterstraße 12", 1),
-                    PlayerUiModel(2, "Lea Beispiel", "Spielweg 4", 2),
-                ),
+                players = emptyList(),
             ),
             onAddPlayer = {},
             onEditPlayer = {},

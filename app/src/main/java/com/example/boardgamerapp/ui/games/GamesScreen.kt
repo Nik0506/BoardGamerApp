@@ -337,24 +337,10 @@ private fun GamesScreenPreview() {
         GamesScreen(
             uiState = GamesUiState(
                 isLoading = false,
-                players = listOf(
-                    GamePlayerUiModel(1, "Max Mustermann"),
-                    GamePlayerUiModel(2, "Lea Beispiel"),
-                ),
-                selectedPlayerId = 1,
+                players = emptyList(),
+                selectedPlayerId = null,
                 gameNightDate = "Freitag, 28. August 2026",
-                suggestions = listOf(
-                    GameSuggestionUiModel(
-                        id = 1,
-                        name = "Catan",
-                        description = "Handel und Aufbau für drei bis vier Personen.",
-                        suggestedByPlayerId = 1,
-                        suggestedByName = "Max Mustermann",
-                        gameNightDate = "Freitag, 28. August 2026",
-                        voterIds = setOf(1),
-                        isSelected = true,
-                    ),
-                ),
+                suggestions = emptyList(),
             ),
             onSelectPlayer = {},
             onAddSuggestion = {},

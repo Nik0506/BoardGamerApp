@@ -18,17 +18,20 @@ import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.boardgamerapp.data.group.GroupRepository
+import com.example.boardgamerapp.data.repository.FirebaseGameNightRepository
 import com.example.boardgamerapp.data.repository.InMemoryGameNightRepository
 import com.example.boardgamerapp.data.repository.RoomGameNightRepository
 import com.example.boardgamerapp.ui.auth.AuthScreen
 import com.example.boardgamerapp.ui.dashboard.DashboardScreen
+import com.example.boardgamerapp.ui.group.GroupManagementScreen
 import com.example.boardgamerapp.ui.dashboard.DashboardViewModel
 import com.example.boardgamerapp.ui.games.GamesScreen
 import com.example.boardgamerapp.ui.games.GamesViewModel
 import com.example.boardgamerapp.ui.food.FoodScreen
 import com.example.boardgamerapp.ui.food.FoodViewModel
 import com.example.boardgamerapp.ui.navigation.AppDestination
-import com.example.boardgamerapp.ui.players.PlayersScreen
+import com.example.boardgamerapp.ui.profile.ProfileScreen
 import com.example.boardgamerapp.ui.players.PlayersViewModel
 import com.example.boardgamerapp.ui.review.ReviewScreen
 import com.example.boardgamerapp.ui.review.ReviewViewModel
@@ -47,23 +50,31 @@ fun BoardGamerApp() {
 
     val context = LocalContext.current
     val isPreview = LocalInspectionMode.current
-    val repository = remember(context, isPreview) {
+    val localRepository = remember(context, isPreview) {
         if (isPreview) InMemoryGameNightRepository() else RoomGameNightRepository.create(context)
     }
+    val firebaseGameNightRepository = remember(localRepository) {
+        FirebaseGameNightRepository(localRepository)
+    }
+    val groupRepository = remember { GroupRepository() }
     val dashboardViewModel: DashboardViewModel = viewModel(
-        factory = DashboardViewModel.factory(repository),
+        factory = DashboardViewModel.factory(firebaseGameNightRepository, groupRepository),
     )
     val playersViewModel: PlayersViewModel = viewModel(
-        factory = PlayersViewModel.factory(repository),
+        factory = PlayersViewModel.factory(firebaseGameNightRepository),
     )
     val gamesViewModel: GamesViewModel = viewModel(
-        factory = GamesViewModel.factory(repository, repository, repository),
+        factory = GamesViewModel.factory(
+            firebaseGameNightRepository,
+            firebaseGameNightRepository,
+            firebaseGameNightRepository,
+        ),
     )
     val reviewViewModel: ReviewViewModel = viewModel(
-        factory = ReviewViewModel.factory(repository),
+        factory = ReviewViewModel.factory(firebaseGameNightRepository),
     )
     val foodViewModel: FoodViewModel = viewModel(
-        factory = FoodViewModel.factory(repository),
+        factory = FoodViewModel.factory(firebaseGameNightRepository),
     )
     var currentDestination by rememberSaveable {
         mutableStateOf(AppDestination.GAME_NIGHT)
@@ -85,7 +96,8 @@ fun BoardGamerApp() {
                         currentDestination = destination
                         when (destination) {
                             AppDestination.GAME_NIGHT -> dashboardViewModel.loadGameNight()
-                            AppDestination.PROFILE -> playersViewModel.loadPlayers()
+                            AppDestination.GROUPS -> Unit
+                            AppDestination.PROFILE -> Unit
                             AppDestination.GAMES -> gamesViewModel.loadGames()
                             AppDestination.REVIEW -> reviewViewModel.load()
                             AppDestination.FOOD -> foodViewModel.load()
@@ -110,17 +122,14 @@ fun BoardGamerApp() {
                     modifier = Modifier.padding(innerPadding),
                 )
 
-                AppDestination.PROFILE -> PlayersScreen(
-                    uiState = playersViewModel.uiState,
-                    onAddPlayer = playersViewModel::beginAddPlayer,
-                    onEditPlayer = playersViewModel::beginEditPlayer,
-                    onMovePlayer = playersViewModel::movePlayer,
-                    onCreateNextGameNight = playersViewModel::createNextGameNight,
-                    onNameChange = playersViewModel::updateEditorName,
-                    onAddressChange = playersViewModel::updateEditorAddress,
-                    onSavePlayer = playersViewModel::savePlayer,
-                    onDismissEditor = playersViewModel::dismissEditor,
-                    onDismissMessage = playersViewModel::clearMessage,
+                AppDestination.GROUPS -> GroupManagementScreen(
+                    onGroupReady = { currentDestination = AppDestination.GAME_NIGHT },
+                    onSignedOut = { signedIn = false },
+                    modifier = Modifier.padding(innerPadding),
+                )
+
+                AppDestination.PROFILE -> ProfileScreen(
+                    onSignOut = { signedIn = false },
                     modifier = Modifier.padding(innerPadding),
                 )
 

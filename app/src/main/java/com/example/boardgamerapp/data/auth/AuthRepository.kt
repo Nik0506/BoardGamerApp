@@ -5,6 +5,7 @@ import com.google.firebase.Timestamp
 import com.google.firebase.auth.AuthResult
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
@@ -25,11 +26,19 @@ class AuthRepository(
         email: String,
         password: String,
         displayName: String,
+        address: String = "",
     ): Result<FirebaseUser> = runCatching {
         val task = auth.createUserWithEmailAndPassword(email.trim(), password)
         val result = task.await()
         val user = result.user ?: error("User could not be created.")
-        createUserProfileIfNeeded(user, email.trim(), displayName.trim())
+        val trimmedName = displayName.trim()
+        if (trimmedName.isNotBlank()) {
+            val profileUpdate = UserProfileChangeRequest.Builder()
+                .setDisplayName(trimmedName)
+                .build()
+            user.updateProfile(profileUpdate).await()
+        }
+        createUserProfileIfNeeded(user, email.trim(), trimmedName, address.trim())
         user
     }
 
@@ -37,7 +46,12 @@ class AuthRepository(
         val task = auth.signInWithEmailAndPassword(email.trim(), password)
         val result = task.await()
         val user = result.user ?: error("Login failed.")
-        createUserProfileIfNeeded(user, email.trim(), user.displayName ?: "")
+        val storedName = firestore.collection("users").document(user.uid).get().await()
+            .getString("displayName")
+        val storedAddress = firestore.collection("users").document(user.uid).get().await()
+            .getString("address")
+        val resolvedDisplayName = (storedName ?: user.displayName ?: "User").trim()
+        createUserProfileIfNeeded(user, email.trim(), resolvedDisplayName, storedAddress ?: "")
         user
     }
 
@@ -45,6 +59,7 @@ class AuthRepository(
         user: FirebaseUser,
         email: String?,
         displayName: String,
+        address: String = "",
     ) {
         val docRef = firestore.collection("users").document(user.uid)
         val snapshot = docRef.get().await()
@@ -54,6 +69,7 @@ class AuthRepository(
                 uid = user.uid,
                 email = email ?: user.email,
                 displayName = displayName.ifBlank { user.displayName ?: "User" },
+                address = address.ifBlank { "" },
                 createdAt = Timestamp.now(),
                 updatedAt = Timestamp.now(),
             )
@@ -62,6 +78,7 @@ class AuthRepository(
             val updateMap = mapOf(
                 "email" to (email ?: user.email),
                 "displayName" to displayName.ifBlank { user.displayName ?: "User" },
+                "address" to address,
                 "updatedAt" to FieldValue.serverTimestamp(),
             )
             docRef.update(updateMap).await()

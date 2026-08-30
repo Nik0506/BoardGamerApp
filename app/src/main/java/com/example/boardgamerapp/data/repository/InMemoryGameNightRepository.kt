@@ -15,10 +15,10 @@ import com.example.boardgamerapp.domain.model.Vote
 import java.time.LocalDateTime
 
 class InMemoryGameNightRepository(
-    players: List<Player> = samplePlayers,
-    gameNights: List<GameNight> = sampleGameNights,
-    boardGames: List<BoardGame> = sampleBoardGames,
-    votes: List<Vote> = sampleVotes,
+    players: List<Player> = emptyList(),
+    gameNights: List<GameNight> = emptyList(),
+    boardGames: List<BoardGame> = emptyList(),
+    votes: List<Vote> = emptyList(),
     lateNotices: List<LateNotice> = emptyList(),
     reviews: List<Review> = emptyList(),
     foodCategories: List<FoodCategory> = emptyList(),
@@ -418,62 +418,5 @@ class InMemoryGameNightRepository(
 
     companion object {
         private val defaultFoodCategories = listOf("Asiatisch", "Burger", "Pizza")
-
-        private val samplePlayers = listOf(
-            Player(
-                id = 1,
-                name = "Max Mustermann",
-                address = "Musterstraße 12, 33100 Paderborn",
-                hostOrder = 1,
-            ),
-            Player(
-                id = 2,
-                name = "Lea Beispiel",
-                address = "Spielweg 4, 33102 Paderborn",
-                hostOrder = 2,
-            ),
-        )
-
-        private val sampleGameNights = listOf(
-            GameNight(
-                id = 1,
-                startsAt = LocalDateTime.of(2026, 8, 28, 19, 0),
-                hostId = 1,
-                location = "Musterstraße 12, 33100 Paderborn",
-                status = GameNightStatus.PLANNED,
-            ),
-        )
-
-        private val sampleBoardGames = listOf(
-            BoardGame(
-                id = 1,
-                name = "Catan",
-                description = "Handel und Aufbau für drei bis vier Personen.",
-                suggestedByPlayerId = 1,
-                gameNightId = 1,
-            ),
-            BoardGame(
-                id = 2,
-                name = "Heat",
-                description = "Schnelles Autorennen mit taktischem Handmanagement.",
-                suggestedByPlayerId = 2,
-                gameNightId = 1,
-            ),
-        )
-
-        private val sampleVotes = listOf(
-            Vote(
-                id = 1,
-                playerId = 1,
-                boardGameId = 1,
-                gameNightId = 1,
-            ),
-            Vote(
-                id = 2,
-                playerId = 2,
-                boardGameId = 2,
-                gameNightId = 1,
-            ),
-        )
     }
 }

@@ -5,12 +5,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.example.boardgamerapp.data.group.GroupRepository
 import com.example.boardgamerapp.data.repository.GameNightRepository
 import com.example.boardgamerapp.data.repository.BoardGamerRepository
 import com.example.boardgamerapp.data.repository.LateNoticeRepository
 import com.example.boardgamerapp.data.repository.PlayerRepository
 import com.example.boardgamerapp.data.repository.UpcomingGameNight
 import com.example.boardgamerapp.domain.model.LateNotice
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -18,6 +21,7 @@ class DashboardViewModel(
     private val repository: GameNightRepository,
     private val playerRepository: PlayerRepository? = null,
     private val lateNoticeRepository: LateNoticeRepository? = null,
+    private val groupRepository: GroupRepository? = null,
 ) : ViewModel() {
 
     var uiState: DashboardUiState by mutableStateOf(DashboardUiState.Loading)
@@ -44,7 +48,7 @@ class DashboardViewModel(
             return
         }
 
-        val playersResult = playerRepository?.getPlayers() ?: Result.success(emptyList())
+        val playersResult = resolvePlayersForDashboard()
         val noticesResult = lateNoticeRepository?.getLateNotices() ?: Result.success(emptyList())
         val error = playersResult.exceptionOrNull() ?: noticesResult.exceptionOrNull()
         if (error != null) {
@@ -123,7 +127,7 @@ class DashboardViewModel(
                 loadGameNight()
                 val loaded = uiState as? DashboardUiState.Content
                 if (loaded != null) {
-                    uiState = loaded.copy(message = "Verspätungsmeldung wurde lokal gespeichert.")
+                    uiState = loaded.copy(message = "Verspätungsmeldung wurde gespeichert.")
                 }
             },
             onFailure = { error ->
@@ -145,6 +149,33 @@ class DashboardViewModel(
     fun clearMessage() {
         val content = uiState as? DashboardUiState.Content ?: return
         uiState = content.copy(message = null, errorMessage = null)
+    }
+
+    private fun resolvePlayersForDashboard(): Result<List<DashboardPlayerUiModel>> = runCatching {
+        val groupPlayers = groupRepository?.let { repository ->
+            runBlocking(Dispatchers.IO) {
+                repository.getGroupsForCurrentUser().getOrNull()
+                    ?.firstOrNull()
+                    ?.let { group ->
+                        repository.getMembers(group.id).getOrElse { emptyList() }
+                            .map { member ->
+                                DashboardPlayerUiModel(
+                                    id = member.uid.hashCode().toLong(),
+                                    name = member.displayName.ifBlank { "Unbekannt" },
+                                )
+                            }
+                    }
+                    ?: emptyList()
+            }
+        }
+
+        if (!groupPlayers.isNullOrEmpty()) {
+            return@runCatching groupPlayers
+        }
+
+        (playerRepository?.getPlayers() ?: Result.success(emptyList()))
+            .getOrThrow()
+            .map { DashboardPlayerUiModel(id = it.id, name = it.name) }
     }
 
     private fun UpcomingGameNight.toUiModel(): GameNightUiModel = GameNightUiModel(
@@ -185,12 +216,12 @@ class DashboardViewModel(
                 }
             }
 
-        fun factory(repository: BoardGamerRepository): ViewModelProvider.Factory =
+        fun factory(repository: BoardGamerRepository, groupRepository: GroupRepository? = null): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     require(modelClass.isAssignableFrom(DashboardViewModel::class.java))
-                    return DashboardViewModel(repository, repository, repository) as T
+                    return DashboardViewModel(repository, repository, repository, groupRepository) as T
                 }
             }
     }

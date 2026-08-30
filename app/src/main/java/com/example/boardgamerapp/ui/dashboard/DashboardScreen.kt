@@ -157,7 +157,7 @@ private fun DashboardContent(
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        text = uiState.gameNight.location,
+                        text = uiState.gameNight.location.ifBlank { "Keine Adresse hinterlegt" },
                         modifier = Modifier.padding(top = 8.dp),
                         style = MaterialTheme.typography.bodyLarge,
                     )
@@ -202,7 +202,7 @@ private fun DashboardContent(
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        text = "Lokale Demo: Die Meldung wird nur gespeichert und simuliert keine echte Benachrichtigung.",
+                        text = "Die Meldung wird für den aktuellen Spieleabend gespeichert.",
                         modifier = Modifier.padding(top = 6.dp),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -257,7 +257,7 @@ private fun DashboardContent(
 
         item {
             Text(
-                text = "Die Daten bleiben lokal auf diesem Gerät. Es werden keine Nachrichten an andere Spieler versendet.",
+                text = "Die Verspätungsmeldungen sind für die aktuelle Spielrunde relevant und werden mit der Gruppe geteilt.",
                 modifier = Modifier.padding(top = 4.dp, bottom = 24.dp),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -394,8 +394,8 @@ private fun DashboardContentPreview() {
                 GameNightUiModel(
                     date = "Freitag, 28. August 2026",
                     time = "19:00 Uhr",
-                    hostName = "Max Mustermann",
-                    location = "Musterstraße 12, 33100 Paderborn",
+                    hostName = "Gastgeber",
+                    location = "Keine Adresse hinterlegt",
                 ),
             ),
             onRetry = {},
