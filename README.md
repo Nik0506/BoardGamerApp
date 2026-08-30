@@ -7,7 +7,7 @@ Würfelrunde organisiert gemeinsame Brettspielabende über mehrere Geräte. Anme
 - Registrierung, Anmeldung und Abmeldung mit Firebase Authentication
 - Private Spielgruppen erstellen und per Gruppen-ID beitreten
 - Aktive Gruppe auswählen und Mitgliederreihenfolge verwalten
-- Nächsten Spieleabend mit rotierendem Gastgeber planen
+- Nächsten Spieleabend mit Dialog, Datum, Gastgeber-Auswahl und Reihenfolge-Logik planen
 - Spiele vorschlagen und pro Mitglied abstimmen
 - Verspätungsmeldungen für die Gruppe speichern
 - Essenskategorien verwalten und darüber abstimmen
@@ -21,6 +21,8 @@ Würfelrunde organisiert gemeinsame Brettspielabende über mehrere Geräte. Anme
 ## Datenhaltung und Online-Anforderung
 
 Firestore ist die einzige fachliche Datenquelle und Source of Truth. Die frühere Room-Datenbank und das In-Memory-Repository wurden entfernt. Die App besitzt keinen fachlichen Offline-Modus und deklariert Internet- sowie Netzwerkstatuszugriff ausdrücklich. Firestore verwendet keinen persistenten Datenträger-Cache; ohne Verbindung werden Fehler angezeigt und Änderungen nicht lokal vorgemerkt.
+
+Aktueller Funktionsfortschritt: Der Dialog zum Planen des nächsten Spieleabends wurde mit DatePicker, Gastgeber-Dropdown und Reihenfolge-Logik ergänzt. Der gewählte Host wird bevorzugt und danach in der Gruppenreihenfolge hinten platziert, bevor der Termin in Firestore gespeichert wird.
 
 Die aktive Gruppe wird im Firestore-Benutzerprofil gespeichert. Dadurch greifen Dashboard, Termine, Abstimmungen und Bestellungen auf dieselbe ausgewählte Gruppe zu.
 
@@ -50,6 +52,12 @@ Jetpack Compose → ViewModel → Repository → Firebase Auth / Firestore
 - gültige `app/google-services.json`
 - Internetverbindung auf Emulator oder Gerät
 
+## Aktueller Status und Meilensteine
+
+- MS2: gemeinsame Firebase-Gruppe, Auth, Mitglieder, gemeinsame Datenhaltung und Spiel-/Essens-/Bewertungsfunktionen umgesetzt
+- MS3: Spieleabend planen mit Dialog, Datum, Host-Auswahl und Reihenfolge-Logik umgesetzt
+- M2-3: Online-Robustheit und Firestore-Regelhardening als nächster Schwerpunkt
+
 ## Bauen und testen
 
 ```bash
@@ -65,7 +73,7 @@ Die Debug-APK entsteht unter `app/build/outputs/apk/debug/app-debug.apk`.
 
 1. Registrieren oder anmelden.
 2. Eine Gruppe erstellen oder per ID beitreten.
-3. Die Gruppe öffnen und einen Spieleabend planen.
+3. Die Gruppe öffnen und einen Spieleabend über den Dialog planen; Datum, Gastgeber und Reihenfolge festlegen.
 4. App drehen und prüfen, dass Navigation, geöffnete Gruppe und Formulare erhalten bleiben beziehungsweise aus Firestore neu geladen werden.
 5. Spiel- und Essensstimmen von mehreren Konten abgeben.
 6. Restaurant und Bestellungen erfassen und die Gesamtsumme kontrollieren.

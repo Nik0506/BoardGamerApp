@@ -96,14 +96,43 @@ class FirebaseGameNightRepository(
         UpcomingGameNight(gameNight = gameNight.copy(location = host.address.ifBlank { gameNight.location }), host = host)
     }
 
-    override fun createNextGameNight(): Result<UpcomingGameNight> = runCatching {
+    override fun createNextGameNight(
+        startsAt: LocalDateTime?,
+        preferredHostUid: String?,
+        memberOrderOverride: List<String>?,
+    ): Result<UpcomingGameNight> = runCatching {
         firestoreCall {
             val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
             val groupRef = firestore.collection("groups").document(groupId)
             val membersSnapshot = Tasks.await(groupRef.collection("members").get())
-            val orderedMembers = membersSnapshot.documents.mapNotNull { doc ->
+            val currentGroupMembers = membersSnapshot.documents.mapNotNull { doc ->
                 runCatching { GroupMember.fromMap(doc.data ?: emptyMap()) }.getOrNull()
-            }.sortedBy { it.hostOrder }
+            }
+            val defaultOrder = currentGroupMembers.map { it.uid }
+            val savedOrder: List<String> = memberOrderOverride
+                ?: ((Tasks.await(groupRef.get()).get("memberOrder") as? List<*>)
+                    ?.mapNotNull { it as? String }
+                    ?: defaultOrder)
+            val orderedMembers: List<GroupMember> = when {
+                preferredHostUid.isNullOrBlank() -> savedOrder.mapNotNull { uid ->
+                    currentGroupMembers.firstOrNull { it.uid == uid }
+                }
+                savedOrder.contains(preferredHostUid) -> {
+                    val preferredMember = currentGroupMembers.firstOrNull { it.uid == preferredHostUid }
+                    val rest = savedOrder.filter { it != preferredHostUid }
+                        .mapNotNull { uid -> currentGroupMembers.firstOrNull { it.uid == uid } }
+                    listOfNotNull(preferredMember) + rest
+                }
+                else -> currentGroupMembers.firstOrNull { it.uid == preferredHostUid }?.let { preferredMember ->
+                    listOf(preferredMember) + currentGroupMembers.filter { it.uid != preferredHostUid }
+                } ?: currentGroupMembers
+            }.ifEmpty { currentGroupMembers }
+            val nextHost = orderedMembers.firstOrNull() ?: error("In der Gruppe gibt es noch keine Mitglieder.")
+
+            val finalOrder = orderedMembers.map { it.uid }
+            if (finalOrder != (savedOrder.takeIf { it.isNotEmpty() } ?: defaultOrder)) {
+                Tasks.await(groupRef.update("memberOrder", finalOrder, "updatedAt", Timestamp.now()))
+            }
 
             val existingNight = Tasks.await(
                 groupRef.collection("gameNights")
@@ -112,16 +141,7 @@ class FirebaseGameNightRepository(
                     .get(),
             ).documents.firstOrNull()
 
-            val previousHostUid = existingNight?.getString("hostUid")
-            val nextHost = if (previousHostUid == null) {
-                orderedMembers.firstOrNull() ?: error("In der Gruppe gibt es noch keine Mitglieder.")
-            } else {
-                val currentIndex = orderedMembers.indexOfFirst { it.uid == previousHostUid }
-                val nextIndex = if (currentIndex >= 0 && currentIndex + 1 < orderedMembers.size) currentIndex + 1 else 0
-                orderedMembers.getOrNull(nextIndex) ?: orderedMembers.first()
-            }
-
-            val startsAt = existingNight?.let {
+            val resolvedDate = startsAt ?: existingNight?.let {
                 val ts = it.getTimestamp("startsAt") ?: Timestamp.now()
                 ts.toDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime().plusWeeks(2)
             } ?: LocalDateTime.now().plusWeeks(2).withHour(19).withMinute(0).withSecond(0).withNano(0)
@@ -134,7 +154,7 @@ class FirebaseGameNightRepository(
                 "hostUid" to nextHost.uid,
                 "location" to location,
                 "status" to GameNightStatus.PLANNED.name,
-                "startsAt" to Timestamp(Date.from(startsAt.atZone(ZoneId.systemDefault()).toInstant())),
+                "startsAt" to Timestamp(Date.from(resolvedDate.atZone(ZoneId.systemDefault()).toInstant())),
                 "createdAt" to Timestamp.now(),
                 "updatedAt" to Timestamp.now(),
             )
@@ -147,7 +167,7 @@ class FirebaseGameNightRepository(
             UpcomingGameNight(
                 gameNight = GameNight(
                     id = stableId,
-                    startsAt = startsAt,
+                    startsAt = resolvedDate,
                     hostId = nextHost.uid.hashCode().toLong(),
                     location = location,
                     status = GameNightStatus.PLANNED,
