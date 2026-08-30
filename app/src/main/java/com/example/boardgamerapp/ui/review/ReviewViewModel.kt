@@ -5,15 +5,20 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
 import com.example.boardgamerapp.data.repository.PlayerRepository
 import com.example.boardgamerapp.data.repository.ReviewRepository
 import com.example.boardgamerapp.domain.model.GameNightStatus
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class ReviewViewModel(
     private val reviewRepository: ReviewRepository,
     private val playerRepository: PlayerRepository,
+    private val currentPlayerId: Long,
 ) : ViewModel() {
     var uiState: ReviewUiState by mutableStateOf(ReviewUiState.Loading)
         private set
@@ -21,19 +26,19 @@ class ReviewViewModel(
     init { load() }
 
     fun load() {
-        val preferredPlayer = (uiState as? ReviewUiState.Content)?.selectedPlayerId
         uiState = ReviewUiState.Loading
-        val snapshotResult = reviewRepository.getReviewSnapshot()
-        val playersResult = playerRepository.getPlayers()
+        viewModelScope.launch {
+        val snapshotResult = withContext(Dispatchers.IO) { reviewRepository.getReviewSnapshot() }
+        val playersResult = withContext(Dispatchers.IO) { playerRepository.getPlayers() }
         val error = snapshotResult.exceptionOrNull() ?: playersResult.exceptionOrNull()
         if (error != null) {
             uiState = ReviewUiState.Error(error.message ?: "Bewertungen konnten nicht geladen werden.")
-            return
+            return@launch
         }
         val snapshot = snapshotResult.getOrThrow()
         if (snapshot == null) {
             uiState = ReviewUiState.Empty
-            return
+            return@launch
         }
         val reviewedPlayerIds = snapshot.reviews.mapTo(mutableSetOf()) { it.playerId }
         val players = playersResult.getOrThrow().map {
@@ -46,30 +51,27 @@ class ReviewViewModel(
             hostName = snapshot.host.name,
             isFinished = snapshot.gameNight.status == GameNightStatus.FINISHED,
             players = players,
-            selectedPlayerId = preferredPlayer?.takeIf { id -> selectable.any { it.id == id } }
-                ?: selectable.firstOrNull()?.id,
+            selectedPlayerId = currentPlayerId.takeIf { id -> selectable.any { it.id == id } },
+            currentPlayerName = players.firstOrNull { it.id == currentPlayerId }?.name,
+            currentPlayerHasReviewed = currentPlayerId in reviewedPlayerIds,
             reviewCount = snapshot.reviews.size,
             averages = snapshot.averages?.let {
                 ReviewAveragesUiModel(format(it.host), format(it.food), format(it.evening))
             },
         )
+        }
     }
 
     fun finishGameNight() {
         val content = uiState as? ReviewUiState.Content ?: return
-        reviewRepository.finishGameNight(content.gameNightId).fold(
+        viewModelScope.launch {
+        withContext(Dispatchers.IO) { reviewRepository.finishGameNight(content.gameNightId) }.fold(
             onSuccess = {
                 load()
                 uiState = (uiState as ReviewUiState.Content).copy(message = "Spieleabend abgeschlossen.")
             },
             onFailure = { uiState = content.copy(errorMessage = it.message) },
         )
-    }
-
-    fun selectPlayer(playerId: Long) {
-        val content = uiState as? ReviewUiState.Content ?: return
-        if (content.players.any { it.id == playerId && !it.hasReviewed }) {
-            uiState = content.copy(selectedPlayerId = playerId, errorMessage = null)
         }
     }
 
@@ -92,16 +94,18 @@ class ReviewViewModel(
             uiState = content.copy(editor = editor.copy(errorMessage = "Vergib in allen drei Kategorien 1 bis 5 Punkte."))
             return
         }
-        reviewRepository.submitReview(
+        viewModelScope.launch {
+        withContext(Dispatchers.IO) { reviewRepository.submitReview(
             playerId, content.gameNightId, editor.hostRating, editor.foodRating,
             editor.eveningRating, editor.comment,
-        ).fold(
+        ) }.fold(
             onSuccess = {
                 load()
                 uiState = (uiState as ReviewUiState.Content).copy(message = "Bewertung gespeichert.")
             },
             onFailure = { uiState = content.copy(editor = editor.copy(errorMessage = it.message)) },
         )
+        }
     }
 
     fun dismissEditor() {
@@ -124,11 +128,11 @@ class ReviewViewModel(
         private val dateFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy, HH:mm 'Uhr'", Locale.GERMAN)
         private fun format(value: Double) = String.format(Locale.GERMAN, "%.1f", value)
 
-        fun factory(repository: com.example.boardgamerapp.data.repository.BoardGamerRepository) =
+        fun factory(repository: com.example.boardgamerapp.data.repository.BoardGamerRepository, currentPlayerId: Long) =
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                    ReviewViewModel(repository, repository) as T
+                    ReviewViewModel(repository, repository, currentPlayerId) as T
             }
     }
 }

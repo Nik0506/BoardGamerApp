@@ -28,7 +28,6 @@ class ReviewScreenTest {
                 uiState = state,
                 onRetry = {},
                 onFinishGameNight = { state = state.copy(isFinished = true) },
-                onSelectPlayer = {},
                 onBeginReview = { state = state.copy(editor = RatingEditorUiState()) },
                 onHostRating = {},
                 onFoodRating = {},
@@ -55,6 +54,8 @@ class ReviewScreenTest {
         isFinished = isFinished,
         players = listOf(ReviewPlayerUiModel(1, "Max", false)),
         selectedPlayerId = 1,
+        currentPlayerName = "Max",
+        currentPlayerHasReviewed = false,
         reviewCount = 0,
         averages = null,
     )

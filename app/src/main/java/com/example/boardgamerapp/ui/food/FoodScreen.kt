@@ -7,14 +7,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -28,7 +26,6 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun FoodScreen(
     uiState: FoodUiState,
-    onSelectPlayer: (Long) -> Unit,
     onCastVote: (Long) -> Unit,
     onAddCategory: () -> Unit,
     onCategoryNameChange: (String) -> Unit,
@@ -59,15 +56,13 @@ fun FoodScreen(
             Text("Essensabstimmung", Modifier.padding(top = 24.dp), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             Text(uiState.gameNightDate?.let { "Für $it" } ?: "Aktuell ist kein Spieleabend geplant.", Modifier.padding(top = 6.dp))
         }
-        if (uiState.players.isNotEmpty()) {
-            item {
-                Text("Wer stimmt ab?", style = MaterialTheme.typography.labelLarge)
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(uiState.players, key = { it.id }) { player ->
-                        FilterChip(player.id == uiState.selectedPlayerId, { onSelectPlayer(player.id) }, label = { Text(player.name) })
-                    }
-                }
-            }
+        item {
+            Text(
+                uiState.players.firstOrNull { it.id == uiState.selectedPlayerId }
+                    ?.let { "Angemeldet als ${it.name}" }
+                    ?: "Dein Konto ist kein Mitglied der aktiven Gruppe.",
+                style = MaterialTheme.typography.labelLarge,
+            )
         }
         uiState.message?.let { item { Message(it, false, onDismissMessage) } }
         uiState.errorMessage?.let { item { Message(it, true, onDismissMessage) } }

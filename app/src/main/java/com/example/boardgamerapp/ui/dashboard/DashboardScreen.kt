@@ -36,7 +36,6 @@ fun DashboardScreen(
     uiState: DashboardUiState,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
-    onSelectPlayer: (Long) -> Unit = {},
     onAddLateNotice: () -> Unit = {},
     onSelectLateNoticePreset: (Int) -> Unit = {},
     onLateNoticeCustomMinutesChange: (String) -> Unit = {},
@@ -87,7 +86,6 @@ fun DashboardScreen(
 
         is DashboardUiState.Content -> DashboardContent(
             uiState = uiState,
-            onSelectPlayer = onSelectPlayer,
             onAddLateNotice = onAddLateNotice,
             onSelectLateNoticePreset = onSelectLateNoticePreset,
             onLateNoticeCustomMinutesChange = onLateNoticeCustomMinutesChange,
@@ -102,7 +100,6 @@ fun DashboardScreen(
 @Composable
 private fun DashboardContent(
     uiState: DashboardUiState.Content,
-    onSelectPlayer: (Long) -> Unit,
     onAddLateNotice: () -> Unit,
     onSelectLateNoticePreset: (Int) -> Unit,
     onLateNoticeCustomMinutesChange: (String) -> Unit,
@@ -119,7 +116,7 @@ private fun DashboardContent(
     ) {
         item {
             Text(
-                text = "Board Gamer",
+                text = "Würfelrunde",
                 modifier = Modifier.padding(top = 24.dp),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
@@ -165,27 +162,6 @@ private fun DashboardContent(
             }
         }
 
-        if (uiState.players.isNotEmpty()) {
-            item {
-                Text(
-                    text = "Wer meldet die Verspätung?",
-                    style = MaterialTheme.typography.labelLarge,
-                )
-                LazyRow(
-                    modifier = Modifier.padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    items(uiState.players, key = { it.id }) { player ->
-                        FilterChip(
-                            selected = player.id == uiState.selectedPlayerId,
-                            onClick = { onSelectPlayer(player.id) },
-                            label = { Text(player.name) },
-                        )
-                    }
-                }
-            }
-        }
-
         uiState.message?.let { message ->
             item { DashboardMessageCard(message, false, onDismissMessage) }
         }
@@ -202,7 +178,9 @@ private fun DashboardContent(
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        text = "Die Meldung wird für den aktuellen Spieleabend gespeichert.",
+                        text = uiState.players.firstOrNull { it.id == uiState.selectedPlayerId }
+                            ?.let { "Die Meldung wird für dein Konto ${it.name} gespeichert." }
+                            ?: "Dein Konto ist kein Mitglied der aktiven Gruppe.",
                         modifier = Modifier.padding(top = 6.dp),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,

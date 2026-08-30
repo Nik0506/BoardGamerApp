@@ -24,7 +24,6 @@ import java.time.ZoneId
 import java.util.Date
 
 class FirebaseGameNightRepository(
-    private val localRepository: BoardGamerRepository,
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance(),
     private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
 ) : BoardGamerRepository {
@@ -232,6 +231,7 @@ class FirebaseGameNightRepository(
 
     override fun addLateNotice(playerId: Long, minutes: Int): Result<LateNotice> = runCatching {
         firestoreCall {
+            requireCurrentPlayer(playerId)
             val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
             val night = getUpcomingGameNight().getOrNull() ?: error("Es gibt noch keinen nächsten Spieleabend.")
             val gameNightDocId = currentGameNightDocId(groupId) ?: error("Es gibt noch keinen nächsten Spieleabend.")
@@ -285,6 +285,7 @@ class FirebaseGameNightRepository(
         suggestedByPlayerId: Long,
     ): Result<BoardGameSuggestion> = runCatching {
         firestoreCall {
+            requireCurrentPlayer(suggestedByPlayerId)
             val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
             val night = getUpcomingGameNight().getOrNull() ?: error("Es gibt noch keinen nächsten Spieleabend.")
             val gameNightDocId = currentGameNightDocId(groupId) ?: error("Es gibt noch keinen nächsten Spieleabend.")
@@ -325,6 +326,7 @@ class FirebaseGameNightRepository(
 
     override fun deleteGameSuggestion(boardGameId: Long, requestingPlayerId: Long): Result<Unit> = runCatching {
         firestoreCall {
+            requireCurrentPlayer(requestingPlayerId)
             val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
             val night = getUpcomingGameNight().getOrNull() ?: error("Es gibt noch keinen nächsten Spieleabend.")
             val gameNightDocId = currentGameNightDocId(groupId) ?: error("Es gibt noch keinen nächsten Spieleabend.")
@@ -336,6 +338,9 @@ class FirebaseGameNightRepository(
             val docs = Tasks.await(
                 suggestionsRef.whereEqualTo("id", boardGameId).limit(1).get(),
             )
+            require(docs.documents.firstOrNull()?.getLong("suggestedByPlayerId") == requestingPlayerId) {
+                "Du kannst nur deinen eigenen Spielvorschlag löschen."
+            }
             docs.documents.forEach { doc ->
                 Tasks.await(doc.reference.delete())
             }
@@ -386,6 +391,7 @@ class FirebaseGameNightRepository(
 
     override fun castVote(playerId: Long, boardGameId: Long): Result<Vote> = runCatching {
         firestoreCall {
+            requireCurrentPlayer(playerId)
             val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
             val night = getUpcomingGameNight().getOrNull() ?: error("Es gibt noch keinen nächsten Spieleabend.")
             val gameNightDocId = currentGameNightDocId(groupId) ?: error("Es gibt noch keinen nächsten Spieleabend.")
@@ -414,11 +420,42 @@ class FirebaseGameNightRepository(
         }
     }
 
-    override fun addPlayer(name: String, address: String): Result<Player> = localRepository.addPlayer(name, address)
+    override fun addPlayer(name: String, address: String): Result<Player> = Result.failure(
+        UnsupportedOperationException("Mitglieder treten der Gruppe mit ihrem eigenen Würfelrunde-Konto bei."),
+    )
 
-    override fun updatePlayer(id: Long, name: String, address: String): Result<Player> = localRepository.updatePlayer(id, name, address)
+    override fun updatePlayer(id: Long, name: String, address: String): Result<Player> = runCatching {
+        firestoreCall {
+            val uid = auth.currentUser?.uid ?: error("Du bist nicht angemeldet.")
+            require(uid.hashCode().toLong() == id) { "Du kannst nur dein eigenes Profil bearbeiten." }
+            val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
+            val cleanName = name.trim().also { require(it.isNotEmpty()) { "Name darf nicht leer sein." } }
+            val cleanAddress = address.trim().also { require(it.isNotEmpty()) { "Adresse darf nicht leer sein." } }
+            val values = mapOf("displayName" to cleanName, "address" to cleanAddress, "updatedAt" to Timestamp.now())
+            Tasks.await(firestore.collection("users").document(uid).update(values))
+            Tasks.await(firestore.collection("groups").document(groupId).collection("members").document(uid).update(values))
+            currentGroupPlayers().first { it.id == id }
+        }
+    }
 
-    override fun movePlayer(id: Long, direction: MoveDirection): Result<List<Player>> = localRepository.movePlayer(id, direction)
+    override fun movePlayer(id: Long, direction: MoveDirection): Result<List<Player>> = runCatching {
+        firestoreCall {
+            val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
+            val groupRef = firestore.collection("groups").document(groupId)
+            val group = Tasks.await(groupRef.get())
+            val order = (group.get("memberOrder") as? List<*>)?.mapNotNull { it as? String }?.toMutableList() ?: mutableListOf()
+            val memberDocs = Tasks.await(groupRef.collection("members").get()).documents
+            val uid = memberDocs.firstOrNull { it.id.hashCode().toLong() == id }?.id ?: error("Mitglied nicht gefunden.")
+            val current = order.indexOf(uid)
+            val target = if (direction == MoveDirection.UP) current - 1 else current + 1
+            if (current >= 0 && target in order.indices) {
+                val moved = order.removeAt(current)
+                order.add(target, moved)
+                Tasks.await(groupRef.update("memberOrder", order, "updatedAt", Timestamp.now()))
+            }
+            currentGroupPlayers()
+        }
+    }
 
     override fun getReviewSnapshot(): Result<ReviewSnapshot?> = runCatching {
         val groupId = currentGroupId() ?: return@runCatching null
@@ -483,6 +520,7 @@ class FirebaseGameNightRepository(
         eveningRating: Int,
         comment: String,
     ): Result<Review> = runCatching {
+        requireCurrentPlayer(playerId)
         val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
         val gameNightDoc = currentGameNightDocument(groupId, gameNightId) ?: error("Der Spieleabend wurde nicht gefunden.")
         val currentGameNight = gameNightDoc.toGameNight() ?: error("Der Spieleabend konnte nicht geladen werden.")
@@ -637,6 +675,7 @@ class FirebaseGameNightRepository(
     }
 
     override fun castFoodVote(playerId: Long, categoryId: Long): Result<FoodVote> = runCatching {
+        requireCurrentPlayer(playerId)
         val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
         val night = getUpcomingGameNight().getOrNull() ?: error("Es gibt keinen kommenden Spieleabend.")
         val gameNightDocId = currentGameNightDocId(groupId) ?: error("Es gibt keinen kommenden Spieleabend.")
@@ -719,6 +758,7 @@ class FirebaseGameNightRepository(
     }
 
     override fun saveRestaurant(requestingPlayerId: Long, name: String, menuUrl: String): Result<Restaurant> = runCatching {
+        requireCurrentPlayer(requestingPlayerId)
         val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
         val night = getUpcomingGameNight().getOrNull() ?: error("Es gibt keinen kommenden Spieleabend.")
         val gameNightDocId = currentGameNightDocId(groupId) ?: error("Es gibt keinen kommenden Spieleabend.")
@@ -745,6 +785,7 @@ class FirebaseGameNightRepository(
     }
 
     override fun saveFoodOrder(playerId: Long, dish: String, note: String, priceCents: Long): Result<FoodOrder> = runCatching {
+        requireCurrentPlayer(playerId)
         val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
         val night = getUpcomingGameNight().getOrNull() ?: error("Es gibt keinen kommenden Spieleabend.")
         val gameNightDocId = currentGameNightDocId(groupId) ?: error("Es gibt keinen kommenden Spieleabend.")
@@ -777,6 +818,7 @@ class FirebaseGameNightRepository(
     }
 
     override fun deleteFoodOrder(orderId: Long, requestingPlayerId: Long): Result<Unit> = runCatching {
+        requireCurrentPlayer(requestingPlayerId)
         val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
         val night = getUpcomingGameNight().getOrNull() ?: error("Es gibt keinen kommenden Spieleabend.")
         val gameNightDocId = currentGameNightDocId(groupId) ?: error("Es gibt keinen kommenden Spieleabend.")
@@ -812,6 +854,15 @@ class FirebaseGameNightRepository(
         matching.firstOrNull()
     }
 
+    private fun requireCurrentPlayer(requestedPlayerId: Long): Long {
+        val currentPlayerId = auth.currentUser?.uid?.hashCode()?.toLong()
+            ?: error("Du bist nicht angemeldet.")
+        require(requestedPlayerId == currentPlayerId) {
+            "Du kannst nur Angaben für dein eigenes Konto ändern. Melde dich mit dem passenden Konto an."
+        }
+        return currentPlayerId
+    }
+
     private fun currentGroupPlayers(): List<Player> = firestoreCall {
         val groupId = currentGroupId() ?: return@firestoreCall emptyList()
         val membersSnapshot = Tasks.await(firestore.collection("groups").document(groupId).collection("members").get())
@@ -828,17 +879,15 @@ class FirebaseGameNightRepository(
 
     private fun currentGroupId(): String? = firestoreCall {
         val uid = auth.currentUser?.uid ?: return@firestoreCall null
+        val user = Tasks.await(firestore.collection("users").document(uid).get())
+        val activeGroupId = user.getString("activeGroupId")
+        if (!activeGroupId.isNullOrBlank()) {
+            val membership = Tasks.await(firestore.collection("groups").document(activeGroupId).collection("members").document(uid).get())
+            if (membership.exists()) return@firestoreCall activeGroupId
+        }
         val userGroups = Tasks.await(firestore.collection("users").document(uid).collection("groups").get())
         val groupId = userGroups.documents.firstOrNull()?.id
-        if (groupId != null) return@firestoreCall groupId
-
-        val memberMatches = Tasks.await(
-            firestore.collectionGroup("members")
-                .whereEqualTo("uid", uid)
-                .limit(1)
-                .get(),
-        )
-        memberMatches.documents.firstOrNull()?.reference?.parent?.parent?.id
+        groupId
     }
 
     private fun com.google.firebase.firestore.DocumentSnapshot.toGameNight(): GameNight? {

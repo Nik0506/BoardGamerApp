@@ -32,7 +32,6 @@ fun ReviewScreen(
     uiState: ReviewUiState,
     onRetry: () -> Unit,
     onFinishGameNight: () -> Unit,
-    onSelectPlayer: (Long) -> Unit,
     onBeginReview: () -> Unit,
     onHostRating: (Int) -> Unit,
     onFoodRating: (Int) -> Unit,
@@ -83,17 +82,14 @@ fun ReviewScreen(
                         }
                     }
                     item {
-                        Text("Wer bewertet?", style = MaterialTheme.typography.labelLarge)
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(uiState.players, key = { it.id }) { player ->
-                                FilterChip(
-                                    selected = player.id == uiState.selectedPlayerId,
-                                    enabled = !player.hasReviewed,
-                                    onClick = { onSelectPlayer(player.id) },
-                                    label = { Text(if (player.hasReviewed) "${player.name} ✓" else player.name) },
-                                )
-                            }
-                        }
+                        Text(
+                            when {
+                                uiState.currentPlayerHasReviewed -> "${uiState.currentPlayerName.orEmpty()}: Du hast bereits bewertet."
+                                uiState.currentPlayerName != null -> "Bewertung für dein Konto ${uiState.currentPlayerName}"
+                                else -> "Dein Konto ist kein Mitglied der aktiven Gruppe."
+                            },
+                            style = MaterialTheme.typography.labelLarge,
+                        )
                     }
                     item {
                         Button(onClick = onBeginReview, enabled = uiState.selectedPlayerId != null, modifier = Modifier.fillMaxWidth()) { Text("Bewertung abgeben") }

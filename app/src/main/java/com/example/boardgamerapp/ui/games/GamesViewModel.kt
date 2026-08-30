@@ -5,17 +5,22 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
 import com.example.boardgamerapp.data.repository.GameSuggestionRepository
 import com.example.boardgamerapp.data.repository.PlayerRepository
 import com.example.boardgamerapp.data.repository.VotingRepository
 import com.example.boardgamerapp.data.repository.VotingSnapshot
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class GamesViewModel(
     private val gameRepository: GameSuggestionRepository,
     private val playerRepository: PlayerRepository,
     private val votingRepository: VotingRepository,
+    private val currentPlayerId: Long,
 ) : ViewModel() {
 
     var uiState by mutableStateOf(GamesUiState())
@@ -27,8 +32,9 @@ class GamesViewModel(
 
     fun loadGames() {
         uiState = uiState.copy(isLoading = true, errorMessage = null)
-        val playersResult = playerRepository.getPlayers()
-        val votingResult = votingRepository.getVotingSnapshot()
+        viewModelScope.launch {
+        val playersResult = withContext(Dispatchers.IO) { playerRepository.getPlayers() }
+        val votingResult = withContext(Dispatchers.IO) { votingRepository.getVotingSnapshot() }
 
         val error = playersResult.exceptionOrNull() ?: votingResult.exceptionOrNull()
         if (error != null) {
@@ -36,15 +42,13 @@ class GamesViewModel(
                 isLoading = false,
                 errorMessage = error.message ?: "Die Spielvorschläge konnten nicht geladen werden.",
             )
-            return
+            return@launch
         }
 
         val players = playersResult.getOrThrow().map {
             GamePlayerUiModel(id = it.id, name = it.name)
         }
-        val selectedPlayerId = uiState.selectedPlayerId
-            ?.takeIf { selectedId -> players.any { it.id == selectedId } }
-            ?: players.firstOrNull()?.id
+        val selectedPlayerId = currentPlayerId.takeIf { id -> players.any { it.id == id } }
         val votingSnapshot = votingResult.getOrThrow()
 
         uiState = uiState.copy(
@@ -57,23 +61,13 @@ class GamesViewModel(
             resultText = votingSnapshot.resultText(),
             isLoading = false,
         )
-    }
-
-    fun selectPlayer(playerId: Long) {
-        if (uiState.players.any { it.id == playerId }) {
-            uiState = uiState.copy(
-                selectedPlayerId = playerId,
-                suggestions = uiState.suggestions.map {
-                    it.copy(isSelected = playerId in it.voterIds)
-                },
-                message = null,
-            )
         }
     }
 
     fun castVote(boardGameId: Long) {
         val playerId = uiState.selectedPlayerId ?: return
-        votingRepository.castVote(playerId, boardGameId).fold(
+        viewModelScope.launch {
+        withContext(Dispatchers.IO) { votingRepository.castVote(playerId, boardGameId) }.fold(
             onSuccess = {
                 uiState = uiState.copy(message = "Deine Stimme wurde gespeichert.")
                 loadGames()
@@ -84,11 +78,12 @@ class GamesViewModel(
                 )
             },
         )
+        }
     }
 
     fun beginAddSuggestion() {
         if (uiState.selectedPlayerId == null) {
-            uiState = uiState.copy(errorMessage = "Lege zuerst einen Spieler an.")
+            uiState = uiState.copy(errorMessage = "Dein Konto ist kein Mitglied der aktiven Gruppe.")
             return
         }
         if (uiState.gameNightDate == null) {
@@ -117,11 +112,12 @@ class GamesViewModel(
     fun saveSuggestion() {
         val editor = uiState.editor ?: return
         val playerId = uiState.selectedPlayerId ?: return
-        gameRepository.addGameSuggestion(
+        viewModelScope.launch {
+        withContext(Dispatchers.IO) { gameRepository.addGameSuggestion(
             name = editor.name,
             description = editor.description,
             suggestedByPlayerId = playerId,
-        ).fold(
+        ) }.fold(
             onSuccess = { suggestion ->
                 uiState = uiState.copy(
                     editor = null,
@@ -138,11 +134,13 @@ class GamesViewModel(
                 )
             },
         )
+        }
     }
 
     fun deleteSuggestion(boardGameId: Long) {
         val playerId = uiState.selectedPlayerId ?: return
-        gameRepository.deleteGameSuggestion(boardGameId, playerId).fold(
+        viewModelScope.launch {
+        withContext(Dispatchers.IO) { gameRepository.deleteGameSuggestion(boardGameId, playerId) }.fold(
             onSuccess = {
                 uiState = uiState.copy(message = "Der Spielvorschlag wurde gelöscht.")
                 loadGames()
@@ -153,6 +151,7 @@ class GamesViewModel(
                 )
             },
         )
+        }
     }
 
     fun clearMessage() {
@@ -196,11 +195,12 @@ class GamesViewModel(
             gameRepository: GameSuggestionRepository,
             playerRepository: PlayerRepository,
             votingRepository: VotingRepository,
+            currentPlayerId: Long,
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 require(modelClass.isAssignableFrom(GamesViewModel::class.java))
-                return GamesViewModel(gameRepository, playerRepository, votingRepository) as T
+                return GamesViewModel(gameRepository, playerRepository, votingRepository, currentPlayerId) as T
             }
         }
     }

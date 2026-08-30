@@ -7,21 +7,17 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.boardgamerapp.data.group.GroupRepository
 import com.example.boardgamerapp.data.repository.FirebaseGameNightRepository
-import com.example.boardgamerapp.data.repository.InMemoryGameNightRepository
-import com.example.boardgamerapp.data.repository.RoomGameNightRepository
 import com.example.boardgamerapp.ui.auth.AuthScreen
 import com.example.boardgamerapp.ui.dashboard.DashboardScreen
 import com.example.boardgamerapp.ui.group.GroupManagementScreen
@@ -32,51 +28,58 @@ import com.example.boardgamerapp.ui.food.FoodScreen
 import com.example.boardgamerapp.ui.food.FoodViewModel
 import com.example.boardgamerapp.ui.navigation.AppDestination
 import com.example.boardgamerapp.ui.profile.ProfileScreen
-import com.example.boardgamerapp.ui.players.PlayersViewModel
 import com.example.boardgamerapp.ui.review.ReviewScreen
 import com.example.boardgamerapp.ui.review.ReviewViewModel
-import com.example.boardgamerapp.ui.theme.BoardGamerAppTheme
 import com.google.firebase.auth.FirebaseAuth
 
 @Composable
 fun BoardGamerApp() {
     val auth = FirebaseAuth.getInstance()
-    var signedIn by remember { mutableStateOf(auth.currentUser != null) }
+    var currentUser by remember { mutableStateOf(auth.currentUser) }
 
-    if (!signedIn) {
-        AuthScreen(onSignedIn = { signedIn = true })
+    DisposableEffect(auth) {
+        val listener = FirebaseAuth.AuthStateListener { currentUser = it.currentUser }
+        auth.addAuthStateListener(listener)
+        onDispose { auth.removeAuthStateListener(listener) }
+    }
+
+    val signedInUser = currentUser
+    if (signedInUser == null) {
+        AuthScreen(onSignedIn = { currentUser = auth.currentUser })
         return
     }
 
-    val context = LocalContext.current
-    val isPreview = LocalInspectionMode.current
-    val localRepository = remember(context, isPreview) {
-        if (isPreview) InMemoryGameNightRepository() else RoomGameNightRepository.create(context)
+    key(signedInUser.uid) {
+        SignedInApp(signedInUser.uid)
     }
-    val firebaseGameNightRepository = remember(localRepository) {
-        FirebaseGameNightRepository(localRepository)
-    }
-    val groupRepository = remember { GroupRepository() }
+}
+
+@Composable
+private fun SignedInApp(userUid: String) {
+    val firebaseGameNightRepository = remember { FirebaseGameNightRepository() }
+    val currentPlayerId = userUid.hashCode().toLong()
     val dashboardViewModel: DashboardViewModel = viewModel(
-        factory = DashboardViewModel.factory(firebaseGameNightRepository, groupRepository),
-    )
-    val playersViewModel: PlayersViewModel = viewModel(
-        factory = PlayersViewModel.factory(firebaseGameNightRepository),
+        key = "dashboard-$userUid",
+        factory = DashboardViewModel.factory(firebaseGameNightRepository, currentPlayerId),
     )
     val gamesViewModel: GamesViewModel = viewModel(
+        key = "games-$userUid",
         factory = GamesViewModel.factory(
             firebaseGameNightRepository,
             firebaseGameNightRepository,
             firebaseGameNightRepository,
+            currentPlayerId,
         ),
     )
     val reviewViewModel: ReviewViewModel = viewModel(
-        factory = ReviewViewModel.factory(firebaseGameNightRepository),
+        key = "review-$userUid",
+        factory = ReviewViewModel.factory(firebaseGameNightRepository, currentPlayerId),
     )
     val foodViewModel: FoodViewModel = viewModel(
-        factory = FoodViewModel.factory(firebaseGameNightRepository),
+        key = "food-$userUid",
+        factory = FoodViewModel.factory(firebaseGameNightRepository, currentPlayerId),
     )
-    var currentDestination by rememberSaveable {
+    var currentDestination by rememberSaveable(userUid) {
         mutableStateOf(AppDestination.GAME_NIGHT)
     }
 
@@ -112,7 +115,6 @@ fun BoardGamerApp() {
                 AppDestination.GAME_NIGHT -> DashboardScreen(
                     uiState = dashboardViewModel.uiState,
                     onRetry = dashboardViewModel::loadGameNight,
-                    onSelectPlayer = dashboardViewModel::selectPlayer,
                     onAddLateNotice = dashboardViewModel::beginLateNotice,
                     onSelectLateNoticePreset = dashboardViewModel::selectLateNoticePreset,
                     onLateNoticeCustomMinutesChange = dashboardViewModel::updateLateNoticeCustomMinutes,
@@ -124,18 +126,17 @@ fun BoardGamerApp() {
 
                 AppDestination.GROUPS -> GroupManagementScreen(
                     onGroupReady = { currentDestination = AppDestination.GAME_NIGHT },
-                    onSignedOut = { signedIn = false },
+                    userUid = userUid,
                     modifier = Modifier.padding(innerPadding),
                 )
 
                 AppDestination.PROFILE -> ProfileScreen(
-                    onSignOut = { signedIn = false },
+                    onSignOut = {},
                     modifier = Modifier.padding(innerPadding),
                 )
 
                 AppDestination.GAMES -> GamesScreen(
                     uiState = gamesViewModel.uiState,
-                    onSelectPlayer = gamesViewModel::selectPlayer,
                     onAddSuggestion = gamesViewModel::beginAddSuggestion,
                     onDeleteSuggestion = gamesViewModel::deleteSuggestion,
                     onCastVote = gamesViewModel::castVote,
@@ -151,7 +152,6 @@ fun BoardGamerApp() {
                     uiState = reviewViewModel.uiState,
                     onRetry = reviewViewModel::load,
                     onFinishGameNight = reviewViewModel::finishGameNight,
-                    onSelectPlayer = reviewViewModel::selectPlayer,
                     onBeginReview = reviewViewModel::beginReview,
                     onHostRating = reviewViewModel::setHostRating,
                     onFoodRating = reviewViewModel::setFoodRating,
@@ -165,7 +165,6 @@ fun BoardGamerApp() {
 
                 AppDestination.FOOD -> FoodScreen(
                     uiState = foodViewModel.uiState,
-                    onSelectPlayer = foodViewModel::selectPlayer,
                     onCastVote = foodViewModel::castVote,
                     onAddCategory = foodViewModel::beginAddCategory,
                     onCategoryNameChange = foodViewModel::updateCategoryName,
@@ -190,13 +189,5 @@ fun BoardGamerApp() {
                 )
             }
         }
-    }
-}
-
-@PreviewScreenSizes
-@Composable
-private fun BoardGamerAppPreview() {
-    BoardGamerAppTheme(dynamicColor = false) {
-        BoardGamerApp()
     }
 }

@@ -26,6 +26,8 @@ sealed interface ReviewUiState {
         val isFinished: Boolean,
         val players: List<ReviewPlayerUiModel>,
         val selectedPlayerId: Long?,
+        val currentPlayerName: String?,
+        val currentPlayerHasReviewed: Boolean,
         val reviewCount: Int,
         val averages: ReviewAveragesUiModel?,
         val editor: RatingEditorUiState? = null,

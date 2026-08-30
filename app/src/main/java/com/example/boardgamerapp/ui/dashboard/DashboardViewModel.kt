@@ -5,23 +5,26 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.example.boardgamerapp.data.group.GroupRepository
+import androidx.lifecycle.viewModelScope
 import com.example.boardgamerapp.data.repository.GameNightRepository
 import com.example.boardgamerapp.data.repository.BoardGamerRepository
 import com.example.boardgamerapp.data.repository.LateNoticeRepository
 import com.example.boardgamerapp.data.repository.PlayerRepository
 import com.example.boardgamerapp.data.repository.UpcomingGameNight
 import com.example.boardgamerapp.domain.model.LateNotice
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class DashboardViewModel(
     private val repository: GameNightRepository,
     private val playerRepository: PlayerRepository? = null,
     private val lateNoticeRepository: LateNoticeRepository? = null,
-    private val groupRepository: GroupRepository? = null,
+    private val currentPlayerId: Long? = null,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
     var uiState: DashboardUiState by mutableStateOf(DashboardUiState.Loading)
@@ -32,30 +35,30 @@ class DashboardViewModel(
     }
 
     fun loadGameNight() {
-        val previousSelectedPlayerId = (uiState as? DashboardUiState.Content)?.selectedPlayerId
         uiState = DashboardUiState.Loading
-        val upcomingResult = repository.getUpcomingGameNight()
+        viewModelScope.launch {
+        val upcomingResult = withContext(ioDispatcher) { repository.getUpcomingGameNight() }
         val upcoming = upcomingResult.getOrNull()
         if (upcomingResult.isFailure) {
             uiState = DashboardUiState.Error(
                 message = upcomingResult.exceptionOrNull()?.message
                     ?: "Der nächste Spieleabend konnte nicht geladen werden.",
             )
-            return
+            return@launch
         }
         if (upcoming == null) {
             uiState = DashboardUiState.Empty
-            return
+            return@launch
         }
 
-        val playersResult = resolvePlayersForDashboard()
-        val noticesResult = lateNoticeRepository?.getLateNotices() ?: Result.success(emptyList())
+        val playersResult = withContext(ioDispatcher) { resolvePlayersForDashboard() }
+        val noticesResult = withContext(ioDispatcher) { lateNoticeRepository?.getLateNotices() ?: Result.success(emptyList()) }
         val error = playersResult.exceptionOrNull() ?: noticesResult.exceptionOrNull()
         if (error != null) {
             uiState = DashboardUiState.Error(
                 message = error.message ?: "Die Verspätungsmeldungen konnten nicht geladen werden.",
             )
-            return
+            return@launch
         }
 
         val players = playersResult.getOrThrow()
@@ -63,22 +66,16 @@ class DashboardViewModel(
         uiState = DashboardUiState.Content(
             gameNight = upcoming.toUiModel(),
             players = players,
-            selectedPlayerId = selectedPlayer(players, previousSelectedPlayerId),
+            selectedPlayerId = currentPlayerId?.takeIf { id -> players.any { it.id == id } },
             lateNotices = noticesResult.getOrThrow().map { it.toUiModel(players) },
         )
-    }
-
-    fun selectPlayer(playerId: Long) {
-        val content = uiState as? DashboardUiState.Content ?: return
-        if (content.players.any { it.id == playerId }) {
-            uiState = content.copy(selectedPlayerId = playerId, errorMessage = null)
         }
     }
 
     fun beginLateNotice() {
         val content = uiState as? DashboardUiState.Content ?: return
         if (content.selectedPlayerId == null) {
-            uiState = content.copy(errorMessage = "Wähle zuerst den meldenden Spieler aus.")
+            uiState = content.copy(errorMessage = "Dein Konto ist kein Mitglied der aktiven Gruppe.")
             return
         }
         uiState = content.copy(editor = LateNoticeEditorUiState(), message = null, errorMessage = null)
@@ -119,10 +116,11 @@ class DashboardViewModel(
         }
         val playerId = content.selectedPlayerId
         if (playerId == null || lateNoticeRepository == null) {
-            uiState = content.copy(errorMessage = "Wähle zuerst den meldenden Spieler aus.")
+            uiState = content.copy(errorMessage = "Dein Konto ist kein Mitglied der aktiven Gruppe.")
             return
         }
-        lateNoticeRepository.addLateNotice(playerId, minutes).fold(
+        viewModelScope.launch {
+        withContext(ioDispatcher) { lateNoticeRepository.addLateNotice(playerId, minutes) }.fold(
             onSuccess = {
                 loadGameNight()
                 val loaded = uiState as? DashboardUiState.Content
@@ -139,6 +137,7 @@ class DashboardViewModel(
                 )
             },
         )
+        }
     }
 
     fun dismissLateNoticeEditor() {
@@ -152,27 +151,6 @@ class DashboardViewModel(
     }
 
     private fun resolvePlayersForDashboard(): Result<List<DashboardPlayerUiModel>> = runCatching {
-        val groupPlayers = groupRepository?.let { repository ->
-            runBlocking(Dispatchers.IO) {
-                repository.getGroupsForCurrentUser().getOrNull()
-                    ?.firstOrNull()
-                    ?.let { group ->
-                        repository.getMembers(group.id).getOrElse { emptyList() }
-                            .map { member ->
-                                DashboardPlayerUiModel(
-                                    id = member.uid.hashCode().toLong(),
-                                    name = member.displayName.ifBlank { "Unbekannt" },
-                                )
-                            }
-                    }
-                    ?: emptyList()
-            }
-        }
-
-        if (!groupPlayers.isNullOrEmpty()) {
-            return@runCatching groupPlayers
-        }
-
         (playerRepository?.getPlayers() ?: Result.success(emptyList()))
             .getOrThrow()
             .map { DashboardPlayerUiModel(id = it.id, name = it.name) }
@@ -184,14 +162,6 @@ class DashboardViewModel(
         hostName = host.name,
         location = gameNight.location,
     )
-
-    private fun selectedPlayer(
-        players: List<DashboardPlayerUiModel>,
-        preferredPlayerId: Long?,
-    ): Long? =
-        preferredPlayerId
-            ?.takeIf { id -> players.any { it.id == id } }
-            ?: players.firstOrNull()?.id
 
     private fun LateNotice.toUiModel(players: List<DashboardPlayerUiModel>) = LateNoticeUiModel(
         id = id,
@@ -216,12 +186,12 @@ class DashboardViewModel(
                 }
             }
 
-        fun factory(repository: BoardGamerRepository, groupRepository: GroupRepository? = null): ViewModelProvider.Factory =
+        fun factory(repository: BoardGamerRepository, currentPlayerId: Long): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     require(modelClass.isAssignableFrom(DashboardViewModel::class.java))
-                    return DashboardViewModel(repository, repository, repository, groupRepository) as T
+                    return DashboardViewModel(repository, repository, repository, currentPlayerId) as T
                 }
             }
     }

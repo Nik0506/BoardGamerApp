@@ -1,123 +1,81 @@
-# BoardGamerApp
+# Würfelrunde
 
-Eine Android-App zur Organisation regelmäßiger Brettspielabende. Das Projekt wird iterativ entwickelt; der aktuelle Stand umfasst sowohl das lokale MVP als auch den Start einer gruppenfähigen Mehrgeräte-Architektur mit Firebase.
+Würfelrunde organisiert gemeinsame Brettspielabende über mehrere Geräte. Anmeldung, Gruppen, Mitglieder, Termine, Spiel- und Essensabstimmungen, Verspätungsmeldungen, Bestellungen und Bewertungen werden zentral über Firebase bereitgestellt.
 
-## Aktueller Funktionsumfang
+## Funktionsumfang
 
-- Adaptive Navigation zu Termin, Spielen, Essen, Bewertung und Profil
-- Dashboard für den nächsten Spieleabend
-- Lade-, Leer-, Inhalts- und Fehlerzustand
-- Spieler hinzufügen und bearbeiten
-- Gastgeberreihenfolge verändern
-- Folgetermin mit automatisch rotierendem Gastgeber planen
-- Aktives Gruppenmitglied in der lokalen Demo auswählen
-- Spiele mit optionaler Beschreibung vorschlagen
-- Vorschläge mit Urheber und zugehörigem Termin anzeigen
-- Eigene Spielvorschläge löschen
-- Pro Spieler und Spieleabend genau eine Stimme abgeben oder ändern
-- Beteiligung und Stimmenzahlen anzeigen
-- Ergebnisse nach Stimmen sortieren
-- Gewinner oder Gleichstand unmittelbar darstellen
-- Persistente Room-Datenbank für Spieler, Spieleabende, Spielvorschläge und Stimmen
-- Verspätung für den kommenden Spieleabend mit 10, 20, 30 oder freien Minuten lokal melden
-- Aktuelle, dem Spieler und Termin zugeordnete Verspätungsmeldungen auf dem Dashboard anzeigen
-- Spieleabend im eigenen Bewertungsbereich abschließen
-- Gastgeber, Essen und Gesamtabend mit 1 bis 5 Punkten bewerten
-- Optionalen Kommentar und unmittelbar berechnete Durchschnittswerte anzeigen
-- Pro Spieler und Spieleabend höchstens eine Bewertung speichern
-- Essenskategorien für den kommenden Spieleabend verwalten
-- Pro Spieler genau eine Essensstimme abgeben oder ändern
-- Ergebnis, Gleichstand und noch fehlende Stimmen anzeigen
-- Noch nicht abstimmende Personen über eine rein lokale Erinnerungsaktion auflisten
-- Restaurantname und Menü-Link durch den Gastgeber hinterlegen
-- Eigene Bestellung mit Gericht, optionalem Hinweis und Preis erfassen oder ändern
-- Bestellungen nach Personen anzeigen und die Gesamtsumme centgenau berechnen
-- Kontrollierte Demo-Daten beim ersten Start einer leeren Datenbank
-- Gemeinsames, austauschbares Repository mit Room als produktiver Datenquelle
-- ViewModel-basierte Zustandsverwaltung
-- Firebase-Setup für Authentication und Firestore
-- E-Mail/Passwort-Registrierung und Login in der App
-- Nutzerprofil- Speicherung in Firestore unter `/users/{uid}`
+- Registrierung, Anmeldung und Abmeldung mit Firebase Authentication
+- Private Spielgruppen erstellen und per Gruppen-ID beitreten
+- Aktive Gruppe auswählen und Mitgliederreihenfolge verwalten
+- Nächsten Spieleabend mit rotierendem Gastgeber planen
+- Spiele vorschlagen und pro Mitglied abstimmen
+- Verspätungsmeldungen für die Gruppe speichern
+- Essenskategorien verwalten und darüber abstimmen
+- Restaurant, Menü-Link und persönliche Bestellungen erfassen
+- Preise als ganze Centbeträge speichern und exakt summieren
+- Abende abschließen und bewerten
+- Adaptives Compose-Layout für unterschiedliche Displaygrößen
+- Wiederherstellung von Navigation und laufenden Eingaben bei Bildschirmdrehung
+- Persönliche Meldungen, Vorschläge, Stimmen, Bestellungen und Bewertungen ausschließlich für das angemeldete Konto
 
-Die Kernabläufe von Terminplanung, Gastgeberrotation, Spiel- und Essensabstimmung, Restaurant- und Bestellplanung, lokaler Verspätungsmeldung und Bewertung funktionieren. Ein Spieleabend kann lokal von jedem Gruppenmitglied abgeschlossen und danach namentlich bewertet werden. Beim ersten Start wird eine leere Datenbank kontrolliert mit Demo-Daten befüllt; vorhandene Daten werden nicht überschrieben. Die Datenbank verwendet Schema-Version 5. Die Erweiterungen werden über die expliziten Migrationen `1 -> 2`, `2 -> 3`, `3 -> 4` und `4 -> 5` ergänzt; es gibt keine destructive fallback migration.
+## Datenhaltung und Online-Anforderung
 
-Im Mehrgeräte-Teil ist die Grundlage für MS2-1 umgesetzt: Firebase Authentication und Firestore sind integriert, und ein Benutzerprofil wird in Firestore gespeichert. Die lokale App zeigt einen Auth-Gate an, bevor die lokale App-Navigation sichtbar wird.
+Firestore ist die einzige fachliche Datenquelle und Source of Truth. Die frühere Room-Datenbank und das In-Memory-Repository wurden entfernt. Die App besitzt keinen fachlichen Offline-Modus und deklariert Internet- sowie Netzwerkstatuszugriff ausdrücklich. Firestore verwendet keinen persistenten Datenträger-Cache; ohne Verbindung werden Fehler angezeigt und Änderungen nicht lokal vorgemerkt.
+
+Die aktive Gruppe wird im Firestore-Benutzerprofil gespeichert. Dadurch greifen Dashboard, Termine, Abstimmungen und Bestellungen auf dieselbe ausgewählte Gruppe zu.
+
+Persönliche Aktionen sind fest an die Firebase-UID gebunden. Es gibt keine manuelle Spielerauswahl; für Angaben eines anderen Mitglieds muss dieses sich mit seinem eigenen Konto anmelden.
+
+```text
+Jetpack Compose → ViewModel → Repository → Firebase Auth / Firestore
+```
 
 ## Technik
 
-- Kotlin
-- Jetpack Compose
-- Material 3
-- ViewModel
-- Room / SQLite
+- Kotlin und Jetpack Compose
+- Material 3 mit adaptiver Navigation
+- ViewModel und speicherbarer Compose-Zustand
 - Firebase Authentication
-- Firestore
+- Cloud Firestore
 - Gradle Kotlin DSL
 - `minSdk 24`, `targetSdk 36`
 
-## Projekt bauen und testen
-
-### Voraussetzungen
+## Voraussetzungen
 
 - Android Studio mit Android SDK 36.1
-- JDK 21; das mit Android Studio gebündete JDK kann verwendet werden
-- Firebase-Projekt mit Authentication und Firestore
-- ein Emulator oder Gerät ab Android 7.0/API 24 für instrumentierte Tests
+- JDK 21, beispielsweise das mit Android Studio ausgelieferte JDK
+- ein erreichbares Firebase-Projekt
+- aktivierte E-Mail/Passwort-Anmeldung
+- passende Firestore-Sicherheitsregeln
+- gültige `app/google-services.json`
+- Internetverbindung auf Emulator oder Gerät
 
-Projektordner in Android Studio öffnen und **File → Sync Project with Gradle Files** ausführen. Für die Kommandozeile muss `JAVA_HOME` auf ein kompatibles JDK zeigen.
+## Bauen und testen
 
 ```bash
 ./gradlew test
 ./gradlew assembleDebug
 ./gradlew lintDebug
 ./gradlew connectedDebugAndroidTest
-./gradlew assembleRelease
 ```
 
-Die Debug-APK wird unter `app/build/outputs/apk/debug/app-debug.apk` erzeugt.
+Die Debug-APK entsteht unter `app/build/outputs/apk/debug/app-debug.apk`.
 
-## Reproduzierbarer Demo-Ablauf
+## Manueller Prüffluss
 
-Bei einer leeren Debug-Datenbank werden Max und Lea, der Spieleabend am 28.08.2026 sowie Catan und Heat angelegt. Vor einer Vorführung kann die App über die Android-Systemeinstellungen zurückgesetzt werden.
+1. Registrieren oder anmelden.
+2. Eine Gruppe erstellen oder per ID beitreten.
+3. Die Gruppe öffnen und einen Spieleabend planen.
+4. App drehen und prüfen, dass Navigation, geöffnete Gruppe und Formulare erhalten bleiben beziehungsweise aus Firestore neu geladen werden.
+5. Spiel- und Essensstimmen von mehreren Konten abgeben.
+6. Restaurant und Bestellungen erfassen und die Gesamtsumme kontrollieren.
+7. Ohne Internet prüfen, dass die App einen Fehler meldet und keine lokale Änderung vortäuscht.
 
-1. Unter **Termin** Datum, Gastgeber und lokale Verspätungsmeldung zeigen.
-2. Unter **Profil** einen Spieler ergänzen und die Gastgeberreihenfolge ändern.
-3. Unter **Spiele** den aktiven Spieler wechseln, einen Vorschlag ergänzen und abstimmen.
-4. Unter **Essen** eine Kategorie ergänzen, für beide Spieler abstimmen und Ergebnis beziehungsweise Gleichstand prüfen.
-5. Als Gastgeber Restaurant und Menü-Link hinterlegen; anschließend für beide Spieler Bestellungen erfassen und die Gesamtsumme prüfen.
-6. Unter **Bewertung** den Spieleabend abschließen.
-7. Für Max und Lea unterschiedliche Bewertungen samt optionalem Kommentar speichern.
-8. Die angezeigten Durchschnittswerte prüfen, die App vollständig schließen und erneut öffnen.
-9. Kontrollieren, dass Spieler, Stimmen, Restaurant, Bestellungen, Meldungen, Abschlussstatus und Bewertungen erhalten geblieben sind.
-10. Im neuen Mehrgeräte-Teil: registrieren oder anmelden, dann prüfen, dass der Nutzer in Firestore unter `/users/{uid}` gespeichert wurde.
+## Bewusste Grenzen
 
-## Architektur
+- Ohne Internetverbindung ist die App fachlich nicht nutzbar.
+- Push-Benachrichtigungen über Firebase Cloud Messaging sind noch nicht umgesetzt.
+- Automatisierte Firebase-Integrationstests benötigen künftig ein separates Testprojekt oder die Firebase Emulator Suite.
+- Der Release-Build benötigt für eine Veröffentlichung noch einen produktiven Signierschlüssel.
 
-Die Compose-Oberfläche kommuniziert über ViewModels und Repository-Verträge mit den Daten. Die produktive lokale Implementierung verwendet Room; für Compose-Previews und isolierte Tests steht weiterhin das In-Memory-Repository zur Verfügung. Firebase Authentication und Firestore ergänzen das lokale MVP jetzt um eine Multi-User-/Gruppenarchitektur.
-
-```text
-Compose UI → ViewModel → Repository → Room / SQLite
-                                      ↘ In-Memory (Preview/Test)
-
-Firebase Auth / Firestore → User- und Gruppenmodell für Mehrgeräte-Umsetzung
-```
-
-Die Domain-Modelle bleiben unabhängig von Room. Datenbank-Entities werden im Repository in Domain-Modelle umgewandelt. Spielstimmen, Essensstimmen, Bestellungen und Bewertungen besitzen jeweils einen eindeutigen Index aus Spieler und Spieleabend. Preise werden als ganze Centbeträge gespeichert und erst zur Anzeige formatiert. Restaurant und Essenskategorien gehören zu genau einem Abend. Bewertungen sind nur nach dem Statuswechsel zu `FINISHED` zulässig und müssen in allen drei Pflichtkategorien zwischen 1 und 5 liegen.
-
-Die Mehrgeräte-Architektur beginnt mit einer klaren Trennung zwischen lokaler App-Logik und Firestore-User-/Gruppenmodell. Das lokale `Player`-Modell wird in einer späteren Iteration in ein Cloud-/Gruppenmodell überführt; im aktuellen Stand ist der Nutzer-Login und das Anlegen des Nutzerprofils in Firestore erfüllt.
-
-## Grenzen des lokalen MVP und der aktuellen Mehrgeräte-Phase
-
-- Alle bisherigen Daten liegen ausschließlich auf einem Gerät; die Cloud-Lösung erweitert die App erst schrittweise.
-- Verspätungsmeldungen werden weiterhin lokal gespeichert und nicht an andere Personen gesendet.
-- Die Erinnerung an fehlende Essensstimmen ist eine lokale Übersicht und versendet keine Benachrichtigung.
-- Der aktive Spieler wird in der Demo manuell ausgewählt; es gibt noch keine echte Gruppen- oder Nutzerauswahl via Cloud.
-- Jedes Gruppenmitglied kann einen Abend lokal abschließen.
-- Bewertungen sind dem ausgewählten Spieler zugeordnet und nicht anonym.
-- Demo-Daten werden nur in einer vollständig leeren Debug-Datenbank angelegt.
-- Die Cloud-Variante ist noch nicht vollständig auf Gruppen- und Sync-Logik erweitert.
-- Der Release-Build ist technisch erzeugbar, benötigt für eine Veröffentlichung aber noch einen produktiven Signierschlüssel.
-
-## Planung
-
-Aufgaben, Akzeptanzkriterien und der aktuelle Entwicklungsstand stehen in [ITERATIVER_PROJEKTPLAN.md](ITERATIVER_PROJEKTPLAN.md).
+Die Entwicklungsschritte und Architekturentscheidungen stehen im [ITERATIVER_PROJEKTPLAN.md](ITERATIVER_PROJEKTPLAN.md).
