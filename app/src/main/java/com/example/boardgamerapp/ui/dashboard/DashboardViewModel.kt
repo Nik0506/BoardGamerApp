@@ -243,7 +243,7 @@ class DashboardViewModel(
         uiState = content.copy(message = null, errorMessage = null)
     }
 
-    private fun resolvePlayersForDashboard(): Result<List<DashboardPlayerUiModel>> = runCatching {
+    private suspend fun resolvePlayersForDashboard(): Result<List<DashboardPlayerUiModel>> = runCatching {
         (playerRepository?.getPlayers() ?: Result.success(emptyList()))
             .getOrThrow()
             .map { DashboardPlayerUiModel(id = it.id, name = it.name) }

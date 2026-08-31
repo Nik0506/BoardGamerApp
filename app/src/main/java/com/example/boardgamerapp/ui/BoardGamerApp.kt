@@ -1,21 +1,34 @@
 package com.example.boardgamerapp.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.boardgamerapp.data.repository.FirebaseGameNightRepository
 import com.example.boardgamerapp.ui.auth.AuthScreen
@@ -57,6 +70,8 @@ fun BoardGamerApp() {
 @Composable
 private fun SignedInApp(userUid: String) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val networkMonitor = remember { com.example.boardgamerapp.data.network.LiveNetworkMonitor(context.applicationContext) }
+    val isOnline by networkMonitor.isOnline.collectAsState(initial = true)
     val notificationHelper = remember { com.example.boardgamerapp.data.notification.AppNotificationHelper(context.applicationContext) }
     val firebaseGameNightRepository = remember { FirebaseGameNightRepository() }
     val currentPlayerId = userUid.hashCode().toLong()
@@ -116,7 +131,35 @@ private fun SignedInApp(userUid: String) {
             }
         },
     ) {
-        Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+        Scaffold(
+            topBar = {
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = !isOnline,
+                    enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
+                    exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
+                ) {
+                    androidx.compose.material3.Surface(
+                        color = androidx.compose.material3.MaterialTheme.colorScheme.errorContainer,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        androidx.compose.foundation.layout.Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(
+                                text = "⚠️ Keine Internetverbindung – Aktionen können fehlschlagen.",
+                                style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                                color = androidx.compose.material3.MaterialTheme.colorScheme.onErrorContainer,
+                            )
+                        }
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxSize(),
+        ) { innerPadding ->
             when (currentDestination) {
                 AppDestination.GAME_NIGHT -> DashboardScreen(
                     uiState = dashboardViewModel.uiState,

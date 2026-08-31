@@ -12,13 +12,14 @@ import com.example.boardgamerapp.domain.model.Player
 import com.example.boardgamerapp.domain.model.Restaurant
 import com.example.boardgamerapp.domain.model.Review
 import com.example.boardgamerapp.domain.model.Vote
-import com.google.android.gms.tasks.Tasks
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.Date
@@ -28,89 +29,75 @@ class FirebaseGameNightRepository(
     private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
 ) : BoardGamerRepository {
 
-    private fun <T> firestoreCall(block: () -> T): T = runBlocking(Dispatchers.IO) { block() }
-
-    private fun currentGameNightDocId(groupId: String): String? = firestoreCall {
-        val snapshot = Tasks.await(
-            firestore.collection("groups")
-                .document(groupId)
-                .collection("gameNights")
-                .orderBy("startsAt", Query.Direction.ASCENDING)
-                .limit(1)
-                .get(),
-        )
-        snapshot.documents.firstOrNull()?.id
+    private suspend fun currentGameNightDocId(groupId: String): String? {
+        val snapshot = firestore.collection("groups")
+            .document(groupId)
+            .collection("gameNights")
+            .orderBy("startsAt", Query.Direction.ASCENDING)
+            .limit(1)
+            .get()
+            .await()
+        return snapshot.documents.firstOrNull()?.id
     }
 
-    private fun resolveHostAddress(groupId: String, uid: String): String {
-        val memberSnapshot = firestoreCall {
-            Tasks.await(
-                firestore.collection("groups").document(groupId).collection("members").document(uid).get(),
-            )
-        }
+    private suspend fun resolveHostAddress(groupId: String, uid: String): String {
+        val memberSnapshot = firestore.collection("groups").document(groupId).collection("members").document(uid).get().await()
         if (memberSnapshot.exists()) {
             val member = GroupMember.fromMap(memberSnapshot.data ?: emptyMap())
             if (member.address.isNotBlank()) return member.address
         }
 
-        val userSnapshot = firestoreCall {
-            Tasks.await(firestore.collection("users").document(uid).get())
-        }
+        val userSnapshot = firestore.collection("users").document(uid).get().await()
         val address = userSnapshot.getString("address")?.trim()
         return address?.takeIf { it.isNotBlank() } ?: "Keine Adresse hinterlegt"
     }
 
-    override fun getUpcomingGameNight(): Result<UpcomingGameNight?> = runCatching {
-        val groupId = currentGroupId() ?: return@runCatching null
-        val snapshot = firestoreCall {
-            Tasks.await(
-                firestore.collection("groups")
-                    .document(groupId)
-                    .collection("gameNights")
-                    .orderBy("startsAt", Query.Direction.ASCENDING)
-                    .limit(1)
-                    .get(),
-            )
-        }
+    override suspend fun getUpcomingGameNight(): Result<UpcomingGameNight?> = withContext(Dispatchers.IO) {
+        runCatching {
+            val groupId = currentGroupId() ?: return@runCatching null
+            val snapshot = firestore.collection("groups")
+                .document(groupId)
+                .collection("gameNights")
+                .orderBy("startsAt", Query.Direction.ASCENDING)
+                .limit(1)
+                .get()
+                .await()
 
-        val doc = snapshot.documents.firstOrNull() ?: return@runCatching null
-        val gameNight = doc.toGameNight() ?: return@runCatching null
-        val fallbackHost = Player(id = 0L, name = "Gastgeber", address = "", hostOrder = 0)
-        val host = doc.getString("hostUid")?.let { uid ->
-            val memberSnapshot = firestoreCall {
-                Tasks.await(
-                    firestore.collection("groups").document(groupId).collection("members").document(uid).get(),
+            val doc = snapshot.documents.firstOrNull() ?: return@runCatching null
+            val gameNight = doc.toGameNight() ?: return@runCatching null
+            val fallbackHost = Player(id = 0L, name = "Gastgeber", address = "", hostOrder = 0)
+            val host = doc.getString("hostUid")?.let { uid ->
+                val memberSnapshot = firestore.collection("groups").document(groupId).collection("members").document(uid).get().await()
+                val member = if (memberSnapshot.exists()) GroupMember.fromMap(memberSnapshot.data ?: emptyMap()) else null
+                val name = member?.displayName?.takeIf { it.isNotBlank() } ?: uid
+                val address = member?.address?.takeIf { it.isNotBlank() } ?: resolveHostAddress(groupId, uid)
+                Player(
+                    id = uid.hashCode().toLong(),
+                    name = name,
+                    address = address,
+                    hostOrder = member?.hostOrder ?: 0,
                 )
-            }
-            val member = if (memberSnapshot.exists()) GroupMember.fromMap(memberSnapshot.data ?: emptyMap()) else null
-            val name = member?.displayName?.takeIf { it.isNotBlank() } ?: uid
-            val address = member?.address?.takeIf { it.isNotBlank() } ?: resolveHostAddress(groupId, uid)
-            Player(
-                id = uid.hashCode().toLong(),
-                name = name,
-                address = address,
-                hostOrder = member?.hostOrder ?: 0,
-            )
-        } ?: fallbackHost
+            } ?: fallbackHost
 
-        UpcomingGameNight(gameNight = gameNight.copy(location = host.address.ifBlank { gameNight.location }), host = host)
+            UpcomingGameNight(gameNight = gameNight.copy(location = host.address.ifBlank { gameNight.location }), host = host)
+        }
     }
 
-    override fun createNextGameNight(
+    override suspend fun createNextGameNight(
         startsAt: LocalDateTime?,
         preferredHostUid: String?,
         memberOrderOverride: List<String>?,
-    ): Result<UpcomingGameNight> = runCatching {
-        firestoreCall {
+    ): Result<UpcomingGameNight> = withContext(Dispatchers.IO) {
+        runCatching {
             val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
             val groupRef = firestore.collection("groups").document(groupId)
-            val membersSnapshot = Tasks.await(groupRef.collection("members").get())
+            val membersSnapshot = groupRef.collection("members").get().await()
             val currentGroupMembers = membersSnapshot.documents.mapNotNull { doc ->
                 runCatching { GroupMember.fromMap(doc.data ?: emptyMap()) }.getOrNull()
             }
             val defaultOrder = currentGroupMembers.map { it.uid }
             val savedOrder: List<String> = memberOrderOverride
-                ?: ((Tasks.await(groupRef.get()).get("memberOrder") as? List<*>)
+                ?: ((groupRef.get().await().get("memberOrder") as? List<*>)
                     ?.mapNotNull { it as? String }
                     ?: defaultOrder)
             val orderedMembers: List<GroupMember> = when {
@@ -131,15 +118,16 @@ class FirebaseGameNightRepository(
 
             val finalOrder = orderedMembers.map { it.uid }
             if (finalOrder != (savedOrder.takeIf { it.isNotEmpty() } ?: defaultOrder)) {
-                Tasks.await(groupRef.update("memberOrder", finalOrder, "updatedAt", Timestamp.now()))
+                groupRef.update("memberOrder", finalOrder, "updatedAt", Timestamp.now()).await()
             }
 
-            val existingNight = Tasks.await(
-                groupRef.collection("gameNights")
-                    .orderBy("startsAt", Query.Direction.DESCENDING)
-                    .limit(1)
-                    .get(),
-            ).documents.firstOrNull()
+            val existingNight = groupRef.collection("gameNights")
+                .orderBy("startsAt", Query.Direction.DESCENDING)
+                .limit(1)
+                .get()
+                .await()
+                .documents
+                .firstOrNull()
 
             val resolvedDate = startsAt ?: existingNight?.let {
                 val ts = it.getTimestamp("startsAt") ?: Timestamp.now()
@@ -160,9 +148,9 @@ class FirebaseGameNightRepository(
             )
 
             val newDoc = groupRef.collection("gameNights").document()
-            Tasks.await(newDoc.set(saved))
+            newDoc.set(saved).await()
             val stableId = newDoc.id.hashCode().toLong()
-            Tasks.await(newDoc.update("id", stableId))
+            newDoc.update("id", stableId).await()
 
             UpcomingGameNight(
                 gameNight = GameNight(
@@ -182,18 +170,18 @@ class FirebaseGameNightRepository(
         }
     }
 
-    override fun updateGameNight(
+    override suspend fun updateGameNight(
         gameNightId: Long,
         startsAt: LocalDateTime,
         hostPlayerId: Long,
-    ): Result<UpcomingGameNight> = runCatching {
-        firestoreCall {
+    ): Result<UpcomingGameNight> = withContext(Dispatchers.IO) {
+        runCatching {
             val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
             val groupRef = firestore.collection("groups").document(groupId)
             val gameNightDoc = currentGameNightDocument(groupId, gameNightId)
                 ?: error("Der Spieleabend wurde nicht gefunden.")
 
-            val membersSnapshot = Tasks.await(groupRef.collection("members").get())
+            val membersSnapshot = groupRef.collection("members").get().await()
             val currentGroupMembers = membersSnapshot.documents.mapNotNull { doc ->
                 runCatching { GroupMember.fromMap(doc.data ?: emptyMap()) }.getOrNull()
             }
@@ -209,14 +197,14 @@ class FirebaseGameNightRepository(
                 "location" to location,
                 "updatedAt" to Timestamp.now(),
             )
-            Tasks.await(gameNightDoc.reference.update(updateData))
+            gameNightDoc.reference.update(updateData).await()
 
-            val savedOrder = ((Tasks.await(groupRef.get()).get("memberOrder") as? List<*>)
+            val savedOrder = ((groupRef.get().await().get("memberOrder") as? List<*>)
                 ?.mapNotNull { it as? String }
                 ?: currentGroupMembers.map { it.uid })
             val rotatedOrder = rotateHostList(savedOrder, targetMember.uid)
             if (rotatedOrder != savedOrder) {
-                Tasks.await(groupRef.update("memberOrder", rotatedOrder, "updatedAt", Timestamp.now()))
+                groupRef.update("memberOrder", rotatedOrder, "updatedAt", Timestamp.now()).await()
             }
 
             val stableId = gameNightDoc.getLong("id") ?: gameNightDoc.id.hashCode().toLong()
@@ -243,75 +231,73 @@ class FirebaseGameNightRepository(
         return listOf(preferredUid) + others
     }
 
-    override fun getGameSuggestions(): Result<GameNightSuggestions?> = runCatching {
-        val groupId = currentGroupId() ?: return@runCatching null
-        val night = getUpcomingGameNight().getOrNull() ?: return@runCatching null
-        val gameNightDocId = currentGameNightDocId(groupId) ?: return@runCatching null
-        val suggestionsSnapshot = firestoreCall {
-            Tasks.await(
-                firestore.collection("groups")
-                    .document(groupId)
-                    .collection("gameNights")
-                    .document(gameNightDocId)
-                    .collection("suggestions")
-                    .orderBy("createdAt", Query.Direction.DESCENDING)
-                    .get(),
-            )
+    override suspend fun getGameSuggestions(): Result<GameNightSuggestions?> = withContext(Dispatchers.IO) {
+        runCatching {
+            val groupId = currentGroupId() ?: return@runCatching null
+            val night = getUpcomingGameNight().getOrNull() ?: return@runCatching null
+            val gameNightDocId = currentGameNightDocId(groupId) ?: return@runCatching null
+            val suggestionsSnapshot = firestore.collection("groups")
+                .document(groupId)
+                .collection("gameNights")
+                .document(gameNightDocId)
+                .collection("suggestions")
+                .orderBy("createdAt", Query.Direction.DESCENDING)
+                .get()
+                .await()
+            val playersById = currentGroupPlayers().associateBy { it.id }
+            val suggestions = suggestionsSnapshot.documents.mapNotNull { doc ->
+                val suggestionId = doc.getLong("id") ?: doc.id.hashCode().toLong()
+                val name = doc.getString("name") ?: return@mapNotNull null
+                val description = doc.getString("description") ?: ""
+                val playerId = doc.getLong("suggestedByPlayerId") ?: return@mapNotNull null
+                BoardGameSuggestion(
+                    boardGame = BoardGame(
+                        id = suggestionId,
+                        name = name,
+                        description = description,
+                        suggestedByPlayerId = playerId,
+                        gameNightId = night.gameNight.id,
+                    ),
+                    suggestedBy = playersById[playerId] ?: Player(playerId, "Unbekannt", "", 0),
+                )
+            }
+
+            GameNightSuggestions(gameNight = night.gameNight, suggestions = suggestions)
         }
-        val playersById = currentGroupPlayers().associateBy { it.id }
-        val suggestions = suggestionsSnapshot.documents.mapNotNull { doc ->
-            val suggestionId = doc.getLong("id") ?: doc.id.hashCode().toLong()
-            val name = doc.getString("name") ?: return@mapNotNull null
-            val description = doc.getString("description") ?: ""
-            val playerId = doc.getLong("suggestedByPlayerId") ?: return@mapNotNull null
-            BoardGameSuggestion(
-                boardGame = BoardGame(
-                    id = suggestionId,
-                    name = name,
-                    description = description,
-                    suggestedByPlayerId = playerId,
+    }
+
+    override suspend fun getLateNotices(): Result<List<LateNotice>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val groupId = currentGroupId() ?: return@runCatching emptyList()
+            val night = getUpcomingGameNight().getOrNull() ?: return@runCatching emptyList()
+            val gameNightDocId = currentGameNightDocId(groupId) ?: return@runCatching emptyList()
+            val snapshot = firestore.collection("groups")
+                .document(groupId)
+                .collection("gameNights")
+                .document(gameNightDocId)
+                .collection("lateNotices")
+                .orderBy("createdAt", Query.Direction.DESCENDING)
+                .get()
+                .await()
+
+            snapshot.documents.mapNotNull { doc ->
+                val createdAt = doc.getTimestamp("createdAt")?.toDate()?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDateTime()
+                val playerId = doc.getLong("playerId") ?: return@mapNotNull null
+                val minutes = doc.getLong("minutes")?.toInt() ?: return@mapNotNull null
+                val noticeId = doc.getLong("id") ?: doc.id.hashCode().toLong()
+                LateNotice(
+                    id = noticeId,
+                    playerId = playerId,
                     gameNightId = night.gameNight.id,
-                ),
-                suggestedBy = playersById[playerId] ?: Player(playerId, "Unbekannt", "", 0),
-            )
-        }
-
-        GameNightSuggestions(gameNight = night.gameNight, suggestions = suggestions)
-    }
-
-    override fun getLateNotices(): Result<List<LateNotice>> = runCatching {
-        val groupId = currentGroupId() ?: return@runCatching emptyList()
-        val night = getUpcomingGameNight().getOrNull() ?: return@runCatching emptyList()
-        val gameNightDocId = currentGameNightDocId(groupId) ?: return@runCatching emptyList()
-        val snapshot = firestoreCall {
-            Tasks.await(
-                firestore.collection("groups")
-                    .document(groupId)
-                    .collection("gameNights")
-                    .document(gameNightDocId)
-                    .collection("lateNotices")
-                    .orderBy("createdAt", Query.Direction.DESCENDING)
-                    .get(),
-            )
-        }
-
-        snapshot.documents.mapNotNull { doc ->
-            val createdAt = doc.getTimestamp("createdAt")?.toDate()?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDateTime()
-            val playerId = doc.getLong("playerId") ?: return@mapNotNull null
-            val minutes = doc.getLong("minutes")?.toInt() ?: return@mapNotNull null
-            val noticeId = doc.getLong("id") ?: doc.id.hashCode().toLong()
-            LateNotice(
-                id = noticeId,
-                playerId = playerId,
-                gameNightId = night.gameNight.id,
-                minutes = minutes,
-                createdAt = createdAt ?: LocalDateTime.now(),
-            )
+                    minutes = minutes,
+                    createdAt = createdAt ?: LocalDateTime.now(),
+                )
+            }
         }
     }
 
-    override fun addLateNotice(playerId: Long, minutes: Int): Result<LateNotice> = runCatching {
-        firestoreCall {
+    override suspend fun addLateNotice(playerId: Long, minutes: Int): Result<LateNotice> = withContext(Dispatchers.IO) {
+        runCatching {
             requireCurrentPlayer(playerId)
             val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
             val night = getUpcomingGameNight().getOrNull() ?: error("Es gibt noch keinen nächsten Spieleabend.")
@@ -329,43 +315,41 @@ class FirebaseGameNightRepository(
                 minutes = minutes,
                 createdAt = LocalDateTime.now(),
             )
-            Tasks.await(
-                docRef.set(
-                    mapOf(
-                        "id" to notice.id,
-                        "playerId" to playerId,
-                        "gameNightId" to night.gameNight.id,
-                        "minutes" to minutes,
-                        "createdAt" to Timestamp.now(),
-                    ),
+            docRef.set(
+                mapOf(
+                    "id" to notice.id,
+                    "playerId" to playerId,
+                    "gameNightId" to night.gameNight.id,
+                    "minutes" to minutes,
+                    "createdAt" to Timestamp.now(),
                 ),
-            )
+            ).await()
             notice
         }
     }
 
-    override fun getPlayers(): Result<List<Player>> = runCatching {
-        val groupId = currentGroupId() ?: return@runCatching emptyList()
-        val membersSnapshot = firestoreCall {
-            Tasks.await(firestore.collection("groups").document(groupId).collection("members").get())
+    override suspend fun getPlayers(): Result<List<Player>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val groupId = currentGroupId() ?: return@runCatching emptyList()
+            val membersSnapshot = firestore.collection("groups").document(groupId).collection("members").get().await()
+            membersSnapshot.documents.mapNotNull { doc ->
+                val member = runCatching { GroupMember.fromMap(doc.data ?: emptyMap()) }.getOrNull() ?: return@mapNotNull null
+                Player(
+                    id = member.uid.hashCode().toLong(),
+                    name = member.displayName.ifBlank { "Unbekannt" },
+                    address = member.address.ifBlank { "Keine Adresse hinterlegt" },
+                    hostOrder = member.hostOrder,
+                )
+            }.sortedBy { it.hostOrder }
         }
-        membersSnapshot.documents.mapNotNull { doc ->
-            val member = runCatching { GroupMember.fromMap(doc.data ?: emptyMap()) }.getOrNull() ?: return@mapNotNull null
-            Player(
-                id = member.uid.hashCode().toLong(),
-                name = member.displayName.ifBlank { "Unbekannt" },
-                address = member.address.ifBlank { "Keine Adresse hinterlegt" },
-                hostOrder = member.hostOrder,
-            )
-        }.sortedBy { it.hostOrder }
     }
 
-    override fun addGameSuggestion(
+    override suspend fun addGameSuggestion(
         name: String,
         description: String,
         suggestedByPlayerId: Long,
-    ): Result<BoardGameSuggestion> = runCatching {
-        firestoreCall {
+    ): Result<BoardGameSuggestion> = withContext(Dispatchers.IO) {
+        runCatching {
             requireCurrentPlayer(suggestedByPlayerId)
             val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
             val night = getUpcomingGameNight().getOrNull() ?: error("Es gibt noch keinen nächsten Spieleabend.")
@@ -380,18 +364,16 @@ class FirebaseGameNightRepository(
                 .document(gameNightDocId)
                 .collection("suggestions")
                 .document()
-            Tasks.await(
-                docRef.set(
-                    mapOf(
-                        "id" to suggestionId,
-                        "name" to name.trim(),
-                        "description" to description.trim(),
-                        "suggestedByPlayerId" to suggestedByPlayerId,
-                        "gameNightId" to night.gameNight.id,
-                        "createdAt" to Timestamp.now(),
-                    ),
+            docRef.set(
+                mapOf(
+                    "id" to suggestionId,
+                    "name" to name.trim(),
+                    "description" to description.trim(),
+                    "suggestedByPlayerId" to suggestedByPlayerId,
+                    "gameNightId" to night.gameNight.id,
+                    "createdAt" to Timestamp.now(),
                 ),
-            )
+            ).await()
             BoardGameSuggestion(
                 boardGame = BoardGame(
                     id = suggestionId,
@@ -405,8 +387,8 @@ class FirebaseGameNightRepository(
         }
     }
 
-    override fun deleteGameSuggestion(boardGameId: Long, requestingPlayerId: Long): Result<Unit> = runCatching {
-        firestoreCall {
+    override suspend fun deleteGameSuggestion(boardGameId: Long, requestingPlayerId: Long): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
             requireCurrentPlayer(requestingPlayerId)
             val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
             val night = getUpcomingGameNight().getOrNull() ?: error("Es gibt noch keinen nächsten Spieleabend.")
@@ -416,62 +398,59 @@ class FirebaseGameNightRepository(
                 .collection("gameNights")
                 .document(gameNightDocId)
                 .collection("suggestions")
-            val docs = Tasks.await(
-                suggestionsRef.whereEqualTo("id", boardGameId).limit(1).get(),
-            )
+            val docs = suggestionsRef.whereEqualTo("id", boardGameId).limit(1).get().await()
             require(docs.documents.firstOrNull()?.getLong("suggestedByPlayerId") == requestingPlayerId) {
                 "Du kannst nur deinen eigenen Spielvorschlag löschen."
             }
             docs.documents.forEach { doc ->
-                Tasks.await(doc.reference.delete())
+                doc.reference.delete().await()
             }
             val votesRef = firestore.collection("groups")
                 .document(groupId)
                 .collection("gameNights")
                 .document(gameNightDocId)
                 .collection("votes")
-            val voteDocs = Tasks.await(votesRef.whereEqualTo("boardGameId", boardGameId).get())
+            val voteDocs = votesRef.whereEqualTo("boardGameId", boardGameId).get().await()
             voteDocs.documents.forEach { doc ->
-                Tasks.await(doc.reference.delete())
+                doc.reference.delete().await()
             }
         }
     }
 
-    override fun getVotingSnapshot(): Result<VotingSnapshot?> = runCatching {
-        val suggestionsResult = getGameSuggestions().getOrNull() ?: return@runCatching null
-        val groupId = currentGroupId() ?: return@runCatching null
-        val night = getUpcomingGameNight().getOrNull() ?: return@runCatching null
-        val gameNightDocId = currentGameNightDocId(groupId) ?: return@runCatching null
-        val voteSnapshot = firestoreCall {
-            Tasks.await(
-                firestore.collection("groups")
-                    .document(groupId)
-                    .collection("gameNights")
-                    .document(gameNightDocId)
-                    .collection("votes")
-                    .get(),
+    override suspend fun getVotingSnapshot(): Result<VotingSnapshot?> = withContext(Dispatchers.IO) {
+        runCatching {
+            val suggestionsResult = getGameSuggestions().getOrNull() ?: return@runCatching null
+            val groupId = currentGroupId() ?: return@runCatching null
+            val night = getUpcomingGameNight().getOrNull() ?: return@runCatching null
+            val gameNightDocId = currentGameNightDocId(groupId) ?: return@runCatching null
+            val voteSnapshot = firestore.collection("groups")
+                .document(groupId)
+                .collection("gameNights")
+                .document(gameNightDocId)
+                .collection("votes")
+                .get()
+                .await()
+            val results = suggestionsResult.suggestions.map { suggestion ->
+                val voterIds = voteSnapshot.documents
+                    .asSequence()
+                    .filter { it.getLong("boardGameId") == suggestion.boardGame.id }
+                    .mapNotNull { it.getLong("playerId") }
+                    .toSet()
+                BoardGameVoteResult(
+                    suggestion = suggestion,
+                    voterIds = voterIds,
+                )
+            }
+            VotingSnapshot(
+                gameNight = suggestionsResult.gameNight,
+                results = results,
+                playerCount = currentGroupPlayers().size,
             )
         }
-        val results = suggestionsResult.suggestions.map { suggestion ->
-            val voterIds = voteSnapshot.documents
-                .asSequence()
-                .filter { it.getLong("boardGameId") == suggestion.boardGame.id }
-                .mapNotNull { it.getLong("playerId") }
-                .toSet()
-            BoardGameVoteResult(
-                suggestion = suggestion,
-                voterIds = voterIds,
-            )
-        }
-        VotingSnapshot(
-            gameNight = suggestionsResult.gameNight,
-            results = results,
-            playerCount = currentGroupPlayers().size,
-        )
     }
 
-    override fun castVote(playerId: Long, boardGameId: Long): Result<Vote> = runCatching {
-        firestoreCall {
+    override suspend fun castVote(playerId: Long, boardGameId: Long): Result<Vote> = withContext(Dispatchers.IO) {
+        runCatching {
             requireCurrentPlayer(playerId)
             val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
             val night = getUpcomingGameNight().getOrNull() ?: error("Es gibt noch keinen nächsten Spieleabend.")
@@ -482,16 +461,14 @@ class FirebaseGameNightRepository(
                 .document(gameNightDocId)
                 .collection("votes")
                 .document(playerId.toString())
-            Tasks.await(
-                voteRef.set(
-                    mapOf(
-                        "playerId" to playerId,
-                        "boardGameId" to boardGameId,
-                        "gameNightId" to night.gameNight.id,
-                        "createdAt" to Timestamp.now(),
-                    ),
+            voteRef.set(
+                mapOf(
+                    "playerId" to playerId,
+                    "boardGameId" to boardGameId,
+                    "gameNightId" to night.gameNight.id,
+                    "createdAt" to Timestamp.now(),
                 ),
-            )
+            ).await()
             Vote(
                 id = playerId,
                 playerId = playerId,
@@ -501,125 +478,125 @@ class FirebaseGameNightRepository(
         }
     }
 
-    override fun addPlayer(name: String, address: String): Result<Player> = Result.failure(
+    override suspend fun addPlayer(name: String, address: String): Result<Player> = Result.failure(
         UnsupportedOperationException("Mitglieder treten der Gruppe mit ihrem eigenen Würfelrunde-Konto bei."),
     )
 
-    override fun updatePlayer(id: Long, name: String, address: String): Result<Player> = runCatching {
-        firestoreCall {
+    override suspend fun updatePlayer(id: Long, name: String, address: String): Result<Player> = withContext(Dispatchers.IO) {
+        runCatching {
             val uid = auth.currentUser?.uid ?: error("Du bist nicht angemeldet.")
             require(uid.hashCode().toLong() == id) { "Du kannst nur dein eigenes Profil bearbeiten." }
             val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
             val cleanName = name.trim().also { require(it.isNotEmpty()) { "Name darf nicht leer sein." } }
             val cleanAddress = address.trim().also { require(it.isNotEmpty()) { "Adresse darf nicht leer sein." } }
             val values = mapOf("displayName" to cleanName, "address" to cleanAddress, "updatedAt" to Timestamp.now())
-            Tasks.await(firestore.collection("users").document(uid).update(values))
-            Tasks.await(firestore.collection("groups").document(groupId).collection("members").document(uid).update(values))
+            firestore.collection("users").document(uid).update(values).await()
+            firestore.collection("groups").document(groupId).collection("members").document(uid).update(values).await()
             currentGroupPlayers().first { it.id == id }
         }
     }
 
-    override fun movePlayer(id: Long, direction: MoveDirection): Result<List<Player>> = runCatching {
-        firestoreCall {
+    override suspend fun movePlayer(id: Long, direction: MoveDirection): Result<List<Player>> = withContext(Dispatchers.IO) {
+        runCatching {
             val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
             val groupRef = firestore.collection("groups").document(groupId)
-            val group = Tasks.await(groupRef.get())
+            val group = groupRef.get().await()
             val order = (group.get("memberOrder") as? List<*>)?.mapNotNull { it as? String }?.toMutableList() ?: mutableListOf()
-            val memberDocs = Tasks.await(groupRef.collection("members").get()).documents
+            val memberDocs = groupRef.collection("members").get().await().documents
             val uid = memberDocs.firstOrNull { it.id.hashCode().toLong() == id }?.id ?: error("Mitglied nicht gefunden.")
             val current = order.indexOf(uid)
             val target = if (direction == MoveDirection.UP) current - 1 else current + 1
             if (current >= 0 && target in order.indices) {
                 val moved = order.removeAt(current)
                 order.add(target, moved)
-                Tasks.await(groupRef.update("memberOrder", order, "updatedAt", Timestamp.now()))
+                groupRef.update("memberOrder", order, "updatedAt", Timestamp.now()).await()
             }
             currentGroupPlayers()
         }
     }
 
-    override fun getReviewSnapshot(): Result<ReviewSnapshot?> = runCatching {
-        val groupId = currentGroupId() ?: return@runCatching null
-        val gameNightDoc = currentGameNightDocument(groupId) ?: return@runCatching null
-        val gameNight = gameNightDoc.toGameNight() ?: return@runCatching null
-        val hostUid = gameNightDoc.getString("hostUid") ?: return@runCatching null
-        val host = currentGroupPlayers().firstOrNull { it.id == hostUid.hashCode().toLong() }
-            ?: Player(hostUid.hashCode().toLong(), hostUid, "", 0)
-        val reviewsSnapshot = firestoreCall {
-            Tasks.await(gameNightDoc.reference.collection("reviews").get())
-        }
-        val reviews = reviewsSnapshot.documents.mapNotNull { reviewDoc ->
-            val reviewId = reviewDoc.getLong("id") ?: reviewDoc.id.hashCode().toLong()
-            val playerId = reviewDoc.getLong("playerId") ?: return@mapNotNull null
-            val hostRating = reviewDoc.getLong("hostRating")?.toInt() ?: return@mapNotNull null
-            val foodRating = reviewDoc.getLong("foodRating")?.toInt() ?: return@mapNotNull null
-            val eveningRating = reviewDoc.getLong("eveningRating")?.toInt() ?: return@mapNotNull null
-            val comment = reviewDoc.getString("comment") ?: ""
-            Review(
-                id = reviewId,
-                playerId = playerId,
-                gameNightId = gameNight.id,
-                hostRating = hostRating,
-                foodRating = foodRating,
-                eveningRating = eveningRating,
-                comment = comment,
+    override suspend fun getReviewSnapshot(): Result<ReviewSnapshot?> = withContext(Dispatchers.IO) {
+        runCatching {
+            val groupId = currentGroupId() ?: return@runCatching null
+            val gameNightDoc = currentGameNightDocument(groupId) ?: return@runCatching null
+            val gameNight = gameNightDoc.toGameNight() ?: return@runCatching null
+            val hostUid = gameNightDoc.getString("hostUid") ?: return@runCatching null
+            val host = currentGroupPlayers().firstOrNull { it.id == hostUid.hashCode().toLong() }
+                ?: Player(hostUid.hashCode().toLong(), hostUid, "", 0)
+            val reviewsSnapshot = gameNightDoc.reference.collection("reviews").get().await()
+            val reviews = reviewsSnapshot.documents.mapNotNull { reviewDoc ->
+                val reviewId = reviewDoc.getLong("id") ?: reviewDoc.id.hashCode().toLong()
+                val playerId = reviewDoc.getLong("playerId") ?: return@mapNotNull null
+                val hostRating = reviewDoc.getLong("hostRating")?.toInt() ?: return@mapNotNull null
+                val foodRating = reviewDoc.getLong("foodRating")?.toInt() ?: return@mapNotNull null
+                val eveningRating = reviewDoc.getLong("eveningRating")?.toInt() ?: return@mapNotNull null
+                val comment = reviewDoc.getString("comment") ?: ""
+                Review(
+                    id = reviewId,
+                    playerId = playerId,
+                    gameNightId = gameNight.id,
+                    hostRating = hostRating,
+                    foodRating = foodRating,
+                    eveningRating = eveningRating,
+                    comment = comment,
+                )
+            }
+            ReviewSnapshot(
+                gameNight = gameNight,
+                host = host,
+                reviews = reviews,
+                averages = reviews.takeIf { it.isNotEmpty() }?.let {
+                    ReviewAverages(
+                        host = it.map(Review::hostRating).average(),
+                        food = it.map(Review::foodRating).average(),
+                        evening = it.map(Review::eveningRating).average(),
+                    )
+                },
             )
         }
-        ReviewSnapshot(
-            gameNight = gameNight,
-            host = host,
-            reviews = reviews,
-            averages = reviews.takeIf { it.isNotEmpty() }?.let {
-                ReviewAverages(
-                    host = it.map(Review::hostRating).average(),
-                    food = it.map(Review::foodRating).average(),
-                    evening = it.map(Review::eveningRating).average(),
-                )
-            },
-        )
     }
 
-    override fun finishGameNight(gameNightId: Long): Result<GameNight> = runCatching {
-        val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
-        val gameNightDoc = currentGameNightDocument(groupId, gameNightId) ?: error("Der Spieleabend wurde nicht gefunden.")
-        Tasks.await(
+    override suspend fun finishGameNight(gameNightId: Long): Result<GameNight> = withContext(Dispatchers.IO) {
+        runCatching {
+            val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
+            val gameNightDoc = currentGameNightDocument(groupId, gameNightId) ?: error("Der Spieleabend wurde nicht gefunden.")
             gameNightDoc.reference.update(
                 mapOf(
                     "status" to GameNightStatus.FINISHED.name,
                     "updatedAt" to Timestamp.now(),
                 ),
-            ),
-        )
-        gameNightDoc.toGameNight()?.copy(status = GameNightStatus.FINISHED) ?: error("Der Spieleabend konnte nicht geladen werden.")
+            ).await()
+            gameNightDoc.toGameNight()?.copy(status = GameNightStatus.FINISHED) ?: error("Der Spieleabend konnte nicht geladen werden.")
+        }
     }
 
-    override fun submitReview(
+    override suspend fun submitReview(
         playerId: Long,
         gameNightId: Long,
         hostRating: Int,
         foodRating: Int,
         eveningRating: Int,
         comment: String,
-    ): Result<Review> = runCatching {
-        requireCurrentPlayer(playerId)
-        val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
-        val gameNightDoc = currentGameNightDocument(groupId, gameNightId) ?: error("Der Spieleabend wurde nicht gefunden.")
-        val currentGameNight = gameNightDoc.toGameNight() ?: error("Der Spieleabend konnte nicht geladen werden.")
-        require(currentGameNight.status == GameNightStatus.FINISHED) {
-            "Nur abgeschlossene Spieleabende können bewertet werden."
-        }
-        val players = currentGroupPlayers()
-        require(players.any { it.id == playerId }) { "Der ausgewählte Spieler wurde nicht gefunden." }
-        val reviewsSnapshot = firestoreCall { Tasks.await(gameNightDoc.reference.collection("reviews").get()) }
-        require(reviewsSnapshot.documents.none { it.getLong("playerId") == playerId }) {
-            "Dieser Spieler hat den Spieleabend bereits bewertet."
-        }
-        require(listOf(hostRating, foodRating, eveningRating).all { it in 1..5 }) {
-            "Alle Bewertungen müssen zwischen 1 und 5 liegen."
-        }
-        val reviewId = System.currentTimeMillis()
-        val reviewDoc = gameNightDoc.reference.collection("reviews").document()
-        Tasks.await(
+    ): Result<Review> = withContext(Dispatchers.IO) {
+        runCatching {
+            requireCurrentPlayer(playerId)
+            val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
+            val gameNightDoc = currentGameNightDocument(groupId, gameNightId) ?: error("Der Spieleabend wurde nicht gefunden.")
+            val currentGameNight = gameNightDoc.toGameNight() ?: error("Der Spieleabend konnte nicht geladen werden.")
+            require(currentGameNight.status == GameNightStatus.FINISHED) {
+                "Nur abgeschlossene Spieleabende können bewertet werden."
+            }
+            val players = currentGroupPlayers()
+            require(players.any { it.id == playerId }) { "Der ausgewählte Spieler wurde nicht gefunden." }
+            val reviewsSnapshot = gameNightDoc.reference.collection("reviews").get().await()
+            require(reviewsSnapshot.documents.none { it.getLong("playerId") == playerId }) {
+                "Dieser Spieler hat den Spieleabend bereits bewertet."
+            }
+            require(listOf(hostRating, foodRating, eveningRating).all { it in 1..5 }) {
+                "Alle Bewertungen müssen zwischen 1 und 5 liegen."
+            }
+            val reviewId = System.currentTimeMillis()
+            val reviewDoc = gameNightDoc.reference.collection("reviews").document()
             reviewDoc.set(
                 mapOf(
                     "id" to reviewId,
@@ -631,34 +608,34 @@ class FirebaseGameNightRepository(
                     "comment" to comment.trim(),
                     "createdAt" to Timestamp.now(),
                 ),
-            ),
-        )
-        Review(
-            id = reviewId,
-            playerId = playerId,
-            gameNightId = gameNightId,
-            hostRating = hostRating,
-            foodRating = foodRating,
-            eveningRating = eveningRating,
-            comment = comment.trim(),
-        )
+            ).await()
+            Review(
+                id = reviewId,
+                playerId = playerId,
+                gameNightId = gameNightId,
+                hostRating = hostRating,
+                foodRating = foodRating,
+                eveningRating = eveningRating,
+                comment = comment.trim(),
+            )
+        }
     }
 
-    override fun getFoodVotingSnapshot(): Result<FoodVotingSnapshot?> = runCatching {
-        val groupId = currentGroupId() ?: return@runCatching null
-        val night = getUpcomingGameNight().getOrNull() ?: return@runCatching null
-        val gameNightDocId = currentGameNightDocId(groupId) ?: return@runCatching null
-        val categoriesRef = firestore.collection("groups")
-            .document(groupId)
-            .collection("gameNights")
-            .document(gameNightDocId)
-            .collection("foodCategories")
-        var categoryDocs = firestoreCall { Tasks.await(categoriesRef.get()) }.documents
-        if (categoryDocs.isEmpty()) {
-            val defaults = listOf("Asiatisch", "Burger", "Pizza")
-            defaults.forEachIndexed { index, categoryName ->
-                val docRef = categoriesRef.document()
-                Tasks.await(
+    override suspend fun getFoodVotingSnapshot(): Result<FoodVotingSnapshot?> = withContext(Dispatchers.IO) {
+        runCatching {
+            val groupId = currentGroupId() ?: return@runCatching null
+            val night = getUpcomingGameNight().getOrNull() ?: return@runCatching null
+            val gameNightDocId = currentGameNightDocId(groupId) ?: return@runCatching null
+            val categoriesRef = firestore.collection("groups")
+                .document(groupId)
+                .collection("gameNights")
+                .document(gameNightDocId)
+                .collection("foodCategories")
+            var categoryDocs = categoriesRef.get().await().documents
+            if (categoryDocs.isEmpty()) {
+                val defaults = listOf("Asiatisch", "Burger", "Pizza")
+                defaults.forEachIndexed { index, categoryName ->
+                    val docRef = categoriesRef.document()
                     docRef.set(
                         mapOf(
                             "id" to (System.currentTimeMillis() + index).toLong(),
@@ -666,62 +643,59 @@ class FirebaseGameNightRepository(
                             "gameNightId" to night.gameNight.id,
                             "createdAt" to Timestamp.now(),
                         ),
-                    ),
-                )
+                    ).await()
+                }
+                categoryDocs = categoriesRef.get().await().documents
             }
-            categoryDocs = firestoreCall { Tasks.await(categoriesRef.get()) }.documents
-        }
 
-        val voteSnapshot = firestoreCall {
-            Tasks.await(
-                firestore.collection("groups")
-                    .document(groupId)
-                    .collection("gameNights")
-                    .document(gameNightDocId)
-                    .collection("foodVotes")
-                    .get(),
+            val voteSnapshot = firestore.collection("groups")
+                .document(groupId)
+                .collection("gameNights")
+                .document(gameNightDocId)
+                .collection("foodVotes")
+                .get()
+                .await()
+            val voterMap = mutableMapOf<Long, MutableSet<Long>>()
+            voteSnapshot.documents.forEach { doc ->
+                val categoryId = doc.getLong("foodCategoryId") ?: return@forEach
+                val playerId = doc.getLong("playerId") ?: return@forEach
+                voterMap.getOrPut(categoryId) { mutableSetOf() }.add(playerId)
+            }
+
+            val players = currentGroupPlayers()
+            FoodVotingSnapshot(
+                gameNight = night.gameNight,
+                results = categoryDocs.mapNotNull { doc ->
+                    val categoryId = doc.getLong("id") ?: doc.id.hashCode().toLong()
+                    val categoryName = doc.getString("name") ?: return@mapNotNull null
+                    FoodVoteResult(
+                        category = FoodCategory(categoryId, categoryName, night.gameNight.id),
+                        voterIds = voterMap[categoryId].orEmpty(),
+                    )
+                }.sortedWith(compareByDescending<FoodVoteResult> { it.voteCount }.thenBy { it.category.name.lowercase() }),
+                players = players,
             )
         }
-        val voterMap = mutableMapOf<Long, MutableSet<Long>>()
-        voteSnapshot.documents.forEach { doc ->
-            val categoryId = doc.getLong("foodCategoryId") ?: return@forEach
-            val playerId = doc.getLong("playerId") ?: return@forEach
-            voterMap.getOrPut(categoryId) { mutableSetOf() }.add(playerId)
-        }
-
-        val players = currentGroupPlayers()
-        FoodVotingSnapshot(
-            gameNight = night.gameNight,
-            results = categoryDocs.mapNotNull { doc ->
-                val categoryId = doc.getLong("id") ?: doc.id.hashCode().toLong()
-                val categoryName = doc.getString("name") ?: return@mapNotNull null
-                FoodVoteResult(
-                    category = FoodCategory(categoryId, categoryName, night.gameNight.id),
-                    voterIds = voterMap[categoryId].orEmpty(),
-                )
-            }.sortedWith(compareByDescending<FoodVoteResult> { it.voteCount }.thenBy { it.category.name.lowercase() }),
-            players = players,
-        )
     }
 
-    override fun addFoodCategory(name: String): Result<FoodCategory> = runCatching {
-        val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
-        val night = getUpcomingGameNight().getOrNull() ?: error("Es gibt keinen kommenden Spieleabend.")
-        val gameNightDocId = currentGameNightDocId(groupId) ?: error("Es gibt keinen kommenden Spieleabend.")
-        val cleanedName = name.trim()
-        require(cleanedName.isNotEmpty()) { "Der Name der Kategorie darf nicht leer sein." }
-        val categoriesRef = firestore.collection("groups")
-            .document(groupId)
-            .collection("gameNights")
-            .document(gameNightDocId)
-            .collection("foodCategories")
-        val existing = firestoreCall { Tasks.await(categoriesRef.get()) }.documents
-        require(existing.none { it.getString("name")?.equals(cleanedName, ignoreCase = true) == true }) {
-            "Diese Essenskategorie gibt es bereits."
-        }
-        val categoryId = System.currentTimeMillis()
-        val docRef = categoriesRef.document()
-        Tasks.await(
+    override suspend fun addFoodCategory(name: String): Result<FoodCategory> = withContext(Dispatchers.IO) {
+        runCatching {
+            val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
+            val night = getUpcomingGameNight().getOrNull() ?: error("Es gibt keinen kommenden Spieleabend.")
+            val gameNightDocId = currentGameNightDocId(groupId) ?: error("Es gibt keinen kommenden Spieleabend.")
+            val cleanedName = name.trim()
+            require(cleanedName.isNotEmpty()) { "Der Name der Kategorie darf nicht leer sein." }
+            val categoriesRef = firestore.collection("groups")
+                .document(groupId)
+                .collection("gameNights")
+                .document(gameNightDocId)
+                .collection("foodCategories")
+            val existing = categoriesRef.get().await().documents
+            require(existing.none { it.getString("name")?.equals(cleanedName, ignoreCase = true) == true }) {
+                "Diese Essenskategorie gibt es bereits."
+            }
+            val categoryId = System.currentTimeMillis()
+            val docRef = categoriesRef.document()
             docRef.set(
                 mapOf(
                     "id" to categoryId,
@@ -729,56 +703,58 @@ class FirebaseGameNightRepository(
                     "gameNightId" to night.gameNight.id,
                     "createdAt" to Timestamp.now(),
                 ),
-            ),
-        )
-        FoodCategory(categoryId, cleanedName, night.gameNight.id)
+            ).await()
+            FoodCategory(categoryId, cleanedName, night.gameNight.id)
+        }
     }
 
-    override fun deleteFoodCategory(categoryId: Long): Result<Unit> = runCatching {
-        val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
-        val night = getUpcomingGameNight().getOrNull() ?: error("Es gibt keinen kommenden Spieleabend.")
-        val gameNightDocId = currentGameNightDocId(groupId) ?: error("Es gibt keinen kommenden Spieleabend.")
-        val categoriesRef = firestore.collection("groups")
-            .document(groupId)
-            .collection("gameNights")
-            .document(gameNightDocId)
-            .collection("foodCategories")
-        val matchingDocs = firestoreCall { Tasks.await(categoriesRef.whereEqualTo("id", categoryId).limit(1).get()) }
-        matchingDocs.documents.forEach { Tasks.await(it.reference.delete()) }
+    override suspend fun deleteFoodCategory(categoryId: Long): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
+            val night = getUpcomingGameNight().getOrNull() ?: error("Es gibt keinen kommenden Spieleabend.")
+            val gameNightDocId = currentGameNightDocId(groupId) ?: error("Es gibt keinen kommenden Spieleabend.")
+            val categoriesRef = firestore.collection("groups")
+                .document(groupId)
+                .collection("gameNights")
+                .document(gameNightDocId)
+                .collection("foodCategories")
+            val matchingDocs = categoriesRef.whereEqualTo("id", categoryId).limit(1).get().await()
+            matchingDocs.documents.forEach { it.reference.delete().await() }
 
-        val votesRef = firestore.collection("groups")
-            .document(groupId)
-            .collection("gameNights")
-            .document(gameNightDocId)
-            .collection("foodVotes")
-        val voteDocs = firestoreCall { Tasks.await(votesRef.whereEqualTo("foodCategoryId", categoryId).get()) }
-        voteDocs.documents.forEach { Tasks.await(it.reference.delete()) }
+            val votesRef = firestore.collection("groups")
+                .document(groupId)
+                .collection("gameNights")
+                .document(gameNightDocId)
+                .collection("foodVotes")
+            val voteDocs = votesRef.whereEqualTo("foodCategoryId", categoryId).get().await()
+            voteDocs.documents.forEach { it.reference.delete().await() }
+        }
     }
 
-    override fun castFoodVote(playerId: Long, categoryId: Long): Result<FoodVote> = runCatching {
-        requireCurrentPlayer(playerId)
-        val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
-        val night = getUpcomingGameNight().getOrNull() ?: error("Es gibt keinen kommenden Spieleabend.")
-        val gameNightDocId = currentGameNightDocId(groupId) ?: error("Es gibt keinen kommenden Spieleabend.")
-        val players = currentGroupPlayers()
-        require(players.any { it.id == playerId }) { "Der ausgewählte Spieler wurde nicht gefunden." }
-        val categoriesRef = firestore.collection("groups")
-            .document(groupId)
-            .collection("gameNights")
-            .document(gameNightDocId)
-            .collection("foodCategories")
-        val categoryExists = firestoreCall { Tasks.await(categoriesRef.whereEqualTo("id", categoryId).limit(1).get()) }
-            .documents.isNotEmpty()
-        require(categoryExists) { "Die ausgewählte Essenskategorie gehört nicht zum kommenden Spieleabend." }
+    override suspend fun castFoodVote(playerId: Long, categoryId: Long): Result<FoodVote> = withContext(Dispatchers.IO) {
+        runCatching {
+            requireCurrentPlayer(playerId)
+            val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
+            val night = getUpcomingGameNight().getOrNull() ?: error("Es gibt keinen kommenden Spieleabend.")
+            val gameNightDocId = currentGameNightDocId(groupId) ?: error("Es gibt keinen kommenden Spieleabend.")
+            val players = currentGroupPlayers()
+            require(players.any { it.id == playerId }) { "Der ausgewählte Spieler wurde nicht gefunden." }
+            val categoriesRef = firestore.collection("groups")
+                .document(groupId)
+                .collection("gameNights")
+                .document(gameNightDocId)
+                .collection("foodCategories")
+            val categoryExists = categoriesRef.whereEqualTo("id", categoryId).limit(1).get().await()
+                .documents.isNotEmpty()
+            require(categoryExists) { "Die ausgewählte Essenskategorie gehört nicht zum kommenden Spieleabend." }
 
-        val voteRef = firestore.collection("groups")
-            .document(groupId)
-            .collection("gameNights")
-            .document(gameNightDocId)
-            .collection("foodVotes")
-            .document(playerId.toString())
-        val voteId = System.currentTimeMillis()
-        Tasks.await(
+            val voteRef = firestore.collection("groups")
+                .document(groupId)
+                .collection("gameNights")
+                .document(gameNightDocId)
+                .collection("foodVotes")
+                .document(playerId.toString())
+            val voteId = System.currentTimeMillis()
             voteRef.set(
                 mapOf(
                     "id" to voteId,
@@ -787,67 +763,64 @@ class FirebaseGameNightRepository(
                     "gameNightId" to night.gameNight.id,
                     "createdAt" to Timestamp.now(),
                 ),
-            ),
-        )
-        FoodVote(voteId, playerId, categoryId, night.gameNight.id)
+            ).await()
+            FoodVote(voteId, playerId, categoryId, night.gameNight.id)
+        }
     }
 
-    override fun getOrderingSnapshot(): Result<OrderingSnapshot?> = runCatching {
-        val groupId = currentGroupId() ?: return@runCatching null
-        val night = getUpcomingGameNight().getOrNull() ?: return@runCatching null
-        val gameNightDocId = currentGameNightDocId(groupId) ?: return@runCatching null
-        val gameNightDoc = firestoreCall {
-            Tasks.await(firestore.collection("groups").document(groupId).collection("gameNights").document(gameNightDocId).get())
-        }
-        val hostName = currentGroupPlayers().firstOrNull { it.id == night.gameNight.hostId } ?: Player(night.gameNight.hostId, "Gastgeber", "", 0)
-        val restaurant = gameNightDoc.getString("restaurantName")?.takeIf { it.isNotBlank() }?.let { name ->
-            Restaurant(
-                id = gameNightDoc.getLong("restaurantId") ?: night.gameNight.id,
-                gameNightId = night.gameNight.id,
-                name = name,
-                menuUrl = gameNightDoc.getString("restaurantMenuUrl") ?: "",
+    override suspend fun getOrderingSnapshot(): Result<OrderingSnapshot?> = withContext(Dispatchers.IO) {
+        runCatching {
+            val groupId = currentGroupId() ?: return@runCatching null
+            val night = getUpcomingGameNight().getOrNull() ?: return@runCatching null
+            val gameNightDocId = currentGameNightDocId(groupId) ?: return@runCatching null
+            val gameNightDoc = firestore.collection("groups").document(groupId).collection("gameNights").document(gameNightDocId).get().await()
+            val hostName = currentGroupPlayers().firstOrNull { it.id == night.gameNight.hostId } ?: Player(night.gameNight.hostId, "Gastgeber", "", 0)
+            val restaurant = gameNightDoc.getString("restaurantName")?.takeIf { it.isNotBlank() }?.let { name ->
+                Restaurant(
+                    id = gameNightDoc.getLong("restaurantId") ?: night.gameNight.id,
+                    gameNightId = night.gameNight.id,
+                    name = name,
+                    menuUrl = gameNightDoc.getString("restaurantMenuUrl") ?: "",
+                )
+            }
+            val ordersSnapshot = firestore.collection("groups")
+                .document(groupId)
+                .collection("gameNights")
+                .document(gameNightDocId)
+                .collection("orders")
+                .get()
+                .await()
+            val orders = ordersSnapshot.documents.mapNotNull { doc ->
+                val playerId = doc.getLong("playerId") ?: return@mapNotNull null
+                val orderId = doc.getLong("id") ?: doc.id.hashCode().toLong()
+                val dish = doc.getString("dish") ?: return@mapNotNull null
+                val note = doc.getString("note") ?: ""
+                val priceCents = doc.getLong("priceCents") ?: 0L
+                val player = currentGroupPlayers().firstOrNull { it.id == playerId } ?: Player(playerId, "Unbekannt", "", 0)
+                OrderWithPlayer(
+                    order = FoodOrder(orderId, night.gameNight.id, playerId, dish, note, priceCents),
+                    player = player,
+                )
+            }.sortedBy { it.player.name.lowercase() }
+            OrderingSnapshot(
+                gameNight = night.gameNight,
+                host = hostName,
+                restaurant = restaurant,
+                orders = orders,
             )
         }
-        val ordersSnapshot = firestoreCall {
-            Tasks.await(
-                firestore.collection("groups")
-                    .document(groupId)
-                    .collection("gameNights")
-                    .document(gameNightDocId)
-                    .collection("orders")
-                    .get(),
-            )
-        }
-        val orders = ordersSnapshot.documents.mapNotNull { doc ->
-            val playerId = doc.getLong("playerId") ?: return@mapNotNull null
-            val orderId = doc.getLong("id") ?: doc.id.hashCode().toLong()
-            val dish = doc.getString("dish") ?: return@mapNotNull null
-            val note = doc.getString("note") ?: ""
-            val priceCents = doc.getLong("priceCents") ?: 0L
-            val player = currentGroupPlayers().firstOrNull { it.id == playerId } ?: Player(playerId, "Unbekannt", "", 0)
-            OrderWithPlayer(
-                order = FoodOrder(orderId, night.gameNight.id, playerId, dish, note, priceCents),
-                player = player,
-            )
-        }.sortedBy { it.player.name.lowercase() }
-        OrderingSnapshot(
-            gameNight = night.gameNight,
-            host = hostName,
-            restaurant = restaurant,
-            orders = orders,
-        )
     }
 
-    override fun saveRestaurant(requestingPlayerId: Long, name: String, menuUrl: String): Result<Restaurant> = runCatching {
-        requireCurrentPlayer(requestingPlayerId)
-        val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
-        val night = getUpcomingGameNight().getOrNull() ?: error("Es gibt keinen kommenden Spieleabend.")
-        val gameNightDocId = currentGameNightDocId(groupId) ?: error("Es gibt keinen kommenden Spieleabend.")
-        require(requestingPlayerId == night.gameNight.hostId) { "Nur der Gastgeber kann das Restaurant bearbeiten." }
-        val cleanUrl = menuUrl.trim()
-        require(cleanUrl.startsWith("https://") || cleanUrl.startsWith("http://")) { "Der Menü-Link muss mit http:// oder https:// beginnen." }
-        val docRef = firestore.collection("groups").document(groupId).collection("gameNights").document(gameNightDocId)
-        Tasks.await(
+    override suspend fun saveRestaurant(requestingPlayerId: Long, name: String, menuUrl: String): Result<Restaurant> = withContext(Dispatchers.IO) {
+        runCatching {
+            requireCurrentPlayer(requestingPlayerId)
+            val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
+            val night = getUpcomingGameNight().getOrNull() ?: error("Es gibt keinen kommenden Spieleabend.")
+            val gameNightDocId = currentGameNightDocId(groupId) ?: error("Es gibt keinen kommenden Spieleabend.")
+            require(requestingPlayerId == night.gameNight.hostId) { "Nur der Gastgeber kann das Restaurant bearbeiten." }
+            val cleanUrl = menuUrl.trim()
+            require(cleanUrl.startsWith("https://") || cleanUrl.startsWith("http://")) { "Der Menü-Link muss mit http:// oder https:// beginnen." }
+            val docRef = firestore.collection("groups").document(groupId).collection("gameNights").document(gameNightDocId)
             docRef.update(
                 mapOf(
                     "restaurantName" to name.trim(),
@@ -855,34 +828,34 @@ class FirebaseGameNightRepository(
                     "restaurantId" to System.currentTimeMillis(),
                     "updatedAt" to Timestamp.now(),
                 ),
-            ),
-        )
-        Restaurant(
-            id = docRef.id.hashCode().toLong(),
-            gameNightId = night.gameNight.id,
-            name = name.trim(),
-            menuUrl = cleanUrl,
-        )
+            ).await()
+            Restaurant(
+                id = docRef.id.hashCode().toLong(),
+                gameNightId = night.gameNight.id,
+                name = name.trim(),
+                menuUrl = cleanUrl,
+            )
+        }
     }
 
-    override fun saveFoodOrder(playerId: Long, dish: String, note: String, priceCents: Long): Result<FoodOrder> = runCatching {
-        requireCurrentPlayer(playerId)
-        val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
-        val night = getUpcomingGameNight().getOrNull() ?: error("Es gibt keinen kommenden Spieleabend.")
-        val gameNightDocId = currentGameNightDocId(groupId) ?: error("Es gibt keinen kommenden Spieleabend.")
-        require(currentGroupPlayers().any { it.id == playerId }) { "Der ausgewählte Spieler wurde nicht gefunden." }
-        require(priceCents >= 0) { "Der Preis darf nicht negativ sein." }
-        val cleanedDish = dish.trim()
-        require(cleanedDish.isNotEmpty()) { "Gericht darf nicht leer sein." }
-        val ordersRef = firestore.collection("groups")
-            .document(groupId)
-            .collection("gameNights")
-            .document(gameNightDocId)
-            .collection("orders")
-        val existing = firestoreCall { Tasks.await(ordersRef.whereEqualTo("playerId", playerId).limit(1).get()) }
-        val orderId = existing.documents.firstOrNull()?.getLong("id") ?: System.currentTimeMillis()
-        val docRef = existing.documents.firstOrNull()?.reference ?: ordersRef.document()
-        Tasks.await(
+    override suspend fun saveFoodOrder(playerId: Long, dish: String, note: String, priceCents: Long): Result<FoodOrder> = withContext(Dispatchers.IO) {
+        runCatching {
+            requireCurrentPlayer(playerId)
+            val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
+            val night = getUpcomingGameNight().getOrNull() ?: error("Es gibt keinen kommenden Spieleabend.")
+            val gameNightDocId = currentGameNightDocId(groupId) ?: error("Es gibt keinen kommenden Spieleabend.")
+            require(currentGroupPlayers().any { it.id == playerId }) { "Der ausgewählte Spieler wurde nicht gefunden." }
+            require(priceCents >= 0) { "Der Preis darf nicht negativ sein." }
+            val cleanedDish = dish.trim()
+            require(cleanedDish.isNotEmpty()) { "Gericht darf nicht leer sein." }
+            val ordersRef = firestore.collection("groups")
+                .document(groupId)
+                .collection("gameNights")
+                .document(gameNightDocId)
+                .collection("orders")
+            val existing = ordersRef.whereEqualTo("playerId", playerId).limit(1).get().await()
+            val orderId = existing.documents.firstOrNull()?.getLong("id") ?: System.currentTimeMillis()
+            val docRef = existing.documents.firstOrNull()?.reference ?: ordersRef.document()
             docRef.set(
                 mapOf(
                     "id" to orderId,
@@ -893,35 +866,38 @@ class FirebaseGameNightRepository(
                     "priceCents" to priceCents,
                     "createdAt" to Timestamp.now(),
                 ),
-            ),
-        )
-        FoodOrder(orderId, night.gameNight.id, playerId, cleanedDish, note.trim(), priceCents)
+            ).await()
+            FoodOrder(orderId, night.gameNight.id, playerId, cleanedDish, note.trim(), priceCents)
+        }
     }
 
-    override fun deleteFoodOrder(orderId: Long, requestingPlayerId: Long): Result<Unit> = runCatching {
-        requireCurrentPlayer(requestingPlayerId)
-        val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
-        val night = getUpcomingGameNight().getOrNull() ?: error("Es gibt keinen kommenden Spieleabend.")
-        val gameNightDocId = currentGameNightDocId(groupId) ?: error("Es gibt keinen kommenden Spieleabend.")
-        val ordersRef = firestore.collection("groups")
-            .document(groupId)
-            .collection("gameNights")
-            .document(gameNightDocId)
-            .collection("orders")
-        val existing = firestoreCall { Tasks.await(ordersRef.whereEqualTo("id", orderId).limit(1).get()) }
-        val match = existing.documents.firstOrNull() ?: error("Die Bestellung wurde nicht gefunden.")
-        require(match.getLong("playerId") == requestingPlayerId) { "Nur die eigene Bestellung kann gelöscht werden." }
-        Tasks.await(match.reference.delete())
+    override suspend fun deleteFoodOrder(orderId: Long, requestingPlayerId: Long): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            requireCurrentPlayer(requestingPlayerId)
+            val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
+            val night = getUpcomingGameNight().getOrNull() ?: error("Es gibt keinen kommenden Spieleabend.")
+            val gameNightDocId = currentGameNightDocId(groupId) ?: error("Es gibt keinen kommenden Spieleabend.")
+            val ordersRef = firestore.collection("groups")
+                .document(groupId)
+                .collection("gameNights")
+                .document(gameNightDocId)
+                .collection("orders")
+            val existing = ordersRef.whereEqualTo("id", orderId).limit(1).get().await()
+            val match = existing.documents.firstOrNull() ?: error("Die Bestellung wurde nicht gefunden.")
+            require(match.getLong("playerId") == requestingPlayerId) { "Nur die eigene Bestellung kann gelöscht werden." }
+            match.reference.delete().await()
+            Unit
+        }
     }
 
-    private fun currentGameNightDocument(groupId: String, gameNightId: Long? = null): com.google.firebase.firestore.DocumentSnapshot? = firestoreCall {
+    private suspend fun currentGameNightDocument(groupId: String, gameNightId: Long? = null): DocumentSnapshot? {
         val gameNightsRef = firestore.collection("groups").document(groupId).collection("gameNights")
-        val matching: List<com.google.firebase.firestore.DocumentSnapshot> = if (gameNightId != null) {
-            val byId = Tasks.await(gameNightsRef.whereEqualTo("id", gameNightId).limit(1).get()).documents
+        val matching: List<DocumentSnapshot> = if (gameNightId != null && gameNightId != 0L) {
+            val byId = gameNightsRef.whereEqualTo("id", gameNightId).limit(1).get().await().documents
             if (byId.isNotEmpty()) {
                 byId
             } else {
-                val byFallback = Tasks.await(gameNightsRef.orderBy("startsAt", Query.Direction.DESCENDING).limit(50).get()).documents
+                val byFallback = gameNightsRef.orderBy("startsAt", Query.Direction.DESCENDING).limit(50).get().await().documents
                 listOfNotNull(
                     byFallback.firstOrNull { doc ->
                         val docId = doc.getLong("id") ?: doc.id.hashCode().toLong()
@@ -930,9 +906,9 @@ class FirebaseGameNightRepository(
                 )
             }
         } else {
-            Tasks.await(gameNightsRef.orderBy("startsAt", Query.Direction.DESCENDING).limit(1).get()).documents
+            gameNightsRef.orderBy("startsAt", Query.Direction.ASCENDING).limit(1).get().await().documents
         }
-        matching.firstOrNull()
+        return matching.firstOrNull()
     }
 
     private fun requireCurrentPlayer(requestedPlayerId: Long): Long {
@@ -944,10 +920,10 @@ class FirebaseGameNightRepository(
         return currentPlayerId
     }
 
-    private fun currentGroupPlayers(): List<Player> = firestoreCall {
-        val groupId = currentGroupId() ?: return@firestoreCall emptyList()
-        val membersSnapshot = Tasks.await(firestore.collection("groups").document(groupId).collection("members").get())
-        membersSnapshot.documents.mapNotNull { doc ->
+    private suspend fun currentGroupPlayers(): List<Player> {
+        val groupId = currentGroupId() ?: return emptyList()
+        val membersSnapshot = firestore.collection("groups").document(groupId).collection("members").get().await()
+        return membersSnapshot.documents.mapNotNull { doc ->
             val member = runCatching { GroupMember.fromMap(doc.data ?: emptyMap()) }.getOrNull() ?: return@mapNotNull null
             Player(
                 id = member.uid.hashCode().toLong(),
@@ -958,20 +934,20 @@ class FirebaseGameNightRepository(
         }.sortedBy { it.hostOrder }
     }
 
-    private fun currentGroupId(): String? = firestoreCall {
-        val uid = auth.currentUser?.uid ?: return@firestoreCall null
-        val user = Tasks.await(firestore.collection("users").document(uid).get())
+    private suspend fun currentGroupId(): String? {
+        val uid = auth.currentUser?.uid ?: return null
+        val user = firestore.collection("users").document(uid).get().await()
         val activeGroupId = user.getString("activeGroupId")
         if (!activeGroupId.isNullOrBlank()) {
-            val membership = Tasks.await(firestore.collection("groups").document(activeGroupId).collection("members").document(uid).get())
-            if (membership.exists()) return@firestoreCall activeGroupId
+            val membership = firestore.collection("groups").document(activeGroupId).collection("members").document(uid).get().await()
+            if (membership.exists()) return activeGroupId
         }
-        val userGroups = Tasks.await(firestore.collection("users").document(uid).collection("groups").get())
+        val userGroups = firestore.collection("users").document(uid).collection("groups").get().await()
         val groupId = userGroups.documents.firstOrNull()?.id
-        groupId
+        return groupId
     }
 
-    private fun com.google.firebase.firestore.DocumentSnapshot.toGameNight(): GameNight? {
+    private fun DocumentSnapshot.toGameNight(): GameNight? {
         val startsAt = getTimestamp("startsAt")?.toDate()?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDateTime()
             ?: return null
         val hostUid = getString("hostUid") ?: return null

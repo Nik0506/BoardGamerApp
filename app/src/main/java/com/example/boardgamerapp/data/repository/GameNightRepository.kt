@@ -84,9 +84,9 @@ data class OrderingSnapshot(
 }
 
 interface GameNightRepository {
-    fun getUpcomingGameNight(): Result<UpcomingGameNight?>
+    suspend fun getUpcomingGameNight(): Result<UpcomingGameNight?>
 
-    fun updateGameNight(
+    suspend fun updateGameNight(
         gameNightId: Long,
         startsAt: java.time.LocalDateTime,
         hostPlayerId: Long,
@@ -94,21 +94,21 @@ interface GameNightRepository {
 }
 
 interface LateNoticeRepository {
-    fun getLateNotices(): Result<List<LateNotice>>
+    suspend fun getLateNotices(): Result<List<LateNotice>>
 
-    fun addLateNotice(playerId: Long, minutes: Int): Result<LateNotice>
+    suspend fun addLateNotice(playerId: Long, minutes: Int): Result<LateNotice>
 }
 
 interface PlayerRepository {
-    fun getPlayers(): Result<List<Player>>
+    suspend fun getPlayers(): Result<List<Player>>
 
-    fun addPlayer(name: String, address: String): Result<Player>
+    suspend fun addPlayer(name: String, address: String): Result<Player>
 
-    fun updatePlayer(id: Long, name: String, address: String): Result<Player>
+    suspend fun updatePlayer(id: Long, name: String, address: String): Result<Player>
 
-    fun movePlayer(id: Long, direction: MoveDirection): Result<List<Player>>
+    suspend fun movePlayer(id: Long, direction: MoveDirection): Result<List<Player>>
 
-    fun createNextGameNight(
+    suspend fun createNextGameNight(
         startsAt: java.time.LocalDateTime? = null,
         preferredHostUid: String? = null,
         memberOrderOverride: List<String>? = null,
@@ -116,29 +116,29 @@ interface PlayerRepository {
 }
 
 interface GameSuggestionRepository {
-    fun getGameSuggestions(): Result<GameNightSuggestions?>
+    suspend fun getGameSuggestions(): Result<GameNightSuggestions?>
 
-    fun addGameSuggestion(
+    suspend fun addGameSuggestion(
         name: String,
         description: String,
         suggestedByPlayerId: Long,
     ): Result<BoardGameSuggestion>
 
-    fun deleteGameSuggestion(boardGameId: Long, requestingPlayerId: Long): Result<Unit>
+    suspend fun deleteGameSuggestion(boardGameId: Long, requestingPlayerId: Long): Result<Unit>
 }
 
 interface VotingRepository {
-    fun getVotingSnapshot(): Result<VotingSnapshot?>
+    suspend fun getVotingSnapshot(): Result<VotingSnapshot?>
 
-    fun castVote(playerId: Long, boardGameId: Long): Result<Vote>
+    suspend fun castVote(playerId: Long, boardGameId: Long): Result<Vote>
 }
 
 interface ReviewRepository {
-    fun getReviewSnapshot(): Result<ReviewSnapshot?>
+    suspend fun getReviewSnapshot(): Result<ReviewSnapshot?>
 
-    fun finishGameNight(gameNightId: Long): Result<GameNight>
+    suspend fun finishGameNight(gameNightId: Long): Result<GameNight>
 
-    fun submitReview(
+    suspend fun submitReview(
         playerId: Long,
         gameNightId: Long,
         hostRating: Int,
@@ -149,20 +149,20 @@ interface ReviewRepository {
 }
 
 interface FoodVotingRepository {
-    fun getFoodVotingSnapshot(): Result<FoodVotingSnapshot?>
+    suspend fun getFoodVotingSnapshot(): Result<FoodVotingSnapshot?>
 
-    fun addFoodCategory(name: String): Result<FoodCategory>
+    suspend fun addFoodCategory(name: String): Result<FoodCategory>
 
-    fun deleteFoodCategory(categoryId: Long): Result<Unit>
+    suspend fun deleteFoodCategory(categoryId: Long): Result<Unit>
 
-    fun castFoodVote(playerId: Long, categoryId: Long): Result<FoodVote>
+    suspend fun castFoodVote(playerId: Long, categoryId: Long): Result<FoodVote>
 }
 
 interface OrderingRepository {
-    fun getOrderingSnapshot(): Result<OrderingSnapshot?>
-    fun saveRestaurant(requestingPlayerId: Long, name: String, menuUrl: String): Result<Restaurant>
-    fun saveFoodOrder(playerId: Long, dish: String, note: String, priceCents: Long): Result<FoodOrder>
-    fun deleteFoodOrder(orderId: Long, requestingPlayerId: Long): Result<Unit>
+    suspend fun getOrderingSnapshot(): Result<OrderingSnapshot?>
+    suspend fun saveRestaurant(requestingPlayerId: Long, name: String, menuUrl: String): Result<Restaurant>
+    suspend fun saveFoodOrder(playerId: Long, dish: String, note: String, priceCents: Long): Result<FoodOrder>
+    suspend fun deleteFoodOrder(orderId: Long, requestingPlayerId: Long): Result<Unit>
 }
 
 interface BoardGamerRepository :
