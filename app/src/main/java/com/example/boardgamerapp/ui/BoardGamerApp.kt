@@ -56,11 +56,17 @@ fun BoardGamerApp() {
 
 @Composable
 private fun SignedInApp(userUid: String) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val notificationHelper = remember { com.example.boardgamerapp.data.notification.AppNotificationHelper(context.applicationContext) }
     val firebaseGameNightRepository = remember { FirebaseGameNightRepository() }
     val currentPlayerId = userUid.hashCode().toLong()
     val dashboardViewModel: DashboardViewModel = viewModel(
         key = "dashboard-$userUid",
-        factory = DashboardViewModel.factory(firebaseGameNightRepository, currentPlayerId),
+        factory = DashboardViewModel.factory(
+            repository = firebaseGameNightRepository,
+            currentPlayerId = currentPlayerId,
+            onSendNotification = notificationHelper::sendNotification,
+        ),
     )
     val gamesViewModel: GamesViewModel = viewModel(
         key = "games-$userUid",
@@ -115,6 +121,12 @@ private fun SignedInApp(userUid: String) {
                 AppDestination.GAME_NIGHT -> DashboardScreen(
                     uiState = dashboardViewModel.uiState,
                     onRetry = dashboardViewModel::loadGameNight,
+                    onEditGameNight = dashboardViewModel::beginEditGameNight,
+                    onGameNightDateChange = dashboardViewModel::updateGameNightEditorDate,
+                    onGameNightTimeChange = dashboardViewModel::updateGameNightEditorTime,
+                    onGameNightHostChange = dashboardViewModel::updateGameNightEditorHost,
+                    onSaveEditedGameNight = dashboardViewModel::saveEditedGameNight,
+                    onDismissGameNightEditor = dashboardViewModel::dismissGameNightEditor,
                     onAddLateNotice = dashboardViewModel::beginLateNotice,
                     onSelectLateNoticePreset = dashboardViewModel::selectLateNoticePreset,
                     onLateNoticeCustomMinutesChange = dashboardViewModel::updateLateNoticeCustomMinutes,

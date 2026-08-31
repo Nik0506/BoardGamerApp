@@ -124,6 +124,25 @@ Akzeptanzkriterien:
 - Der gewählte Host wird vor der normalen Reihenfolge platziert und danach abgespeichert.
 - Die Angabe ist in der Gruppe sofort nachvollziehbar und kann per Kopieren geteilt werden.
 
+### Iteration MS3-2 – Spieleabend editieren
+
+- [x] Optionsmenü auf der Seite des Spieleabends ergänzen
+- [x] Editierenmaske mit Datumsänderung (DatePicker)
+- [x] Editierenmaske mit Uhrzeitänderung (TimePicker)
+- [x] Editierenmaske mit Gastgeber-Auswahl (Dropdown aller Gruppenmitglieder)
+- [x] Speichern- und Abbrechen-Aktionen in der Maske umsetzen
+- [x] Aktualisierung des Termins, des Gastgebers und der Adresse in Firestore
+- [x] Push-Benachrichtigung über Änderungen an Spieleabenden auslösen
+- [x] Erfolgs- und Fehlermeldungen in der Benutzeroberfläche anzeigen
+- [x] Unit- und UI-Tests für den Editierablauf bereitstellen
+
+Akzeptanzkriterien:
+
+- Ein bestehender Spieleabend kann über das Optionsmenü editiert werden.
+- Datum, Uhrzeit und Gastgeber können in einer Editierenmaske angepasst werden.
+- Änderungen können gespeichert oder verworfen werden.
+- Bei erfolgreicher Aktualisierung wird eine Push-Benachrichtigung ausgelöst und die UI synchronisiert.
+
 ### Iteration M2-3 – Online-Robustheit
 
 Ziel: Online-Fehler werden in jedem Bereich verständlich, nicht blockierend und reproduzierbar behandelt.

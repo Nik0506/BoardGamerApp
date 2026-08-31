@@ -1,6 +1,8 @@
 package com.example.boardgamerapp
 
 import com.example.boardgamerapp.data.repository.GameNightRepository
+import com.example.boardgamerapp.data.repository.MoveDirection
+import com.example.boardgamerapp.data.repository.PlayerRepository
 import com.example.boardgamerapp.data.repository.UpcomingGameNight
 import com.example.boardgamerapp.domain.model.GameNight
 import com.example.boardgamerapp.domain.model.GameNightStatus
@@ -76,6 +78,192 @@ class DashboardViewModelTest {
 
         assertTrue(viewModel.uiState is DashboardUiState.Error)
         assertEquals("Testfehler", (viewModel.uiState as DashboardUiState.Error).message)
+    }
+
+    @Test
+    fun `beginEditGameNight initializes editor with current game night values`() = runTest(dispatcher) {
+        val host = Player(1, "Max Mustermann", "Musterstraße 12", 1)
+        val startsAt = LocalDateTime.of(2026, 9, 15, 18, 30)
+        val gameNight = GameNight(
+            id = 42,
+            startsAt = startsAt,
+            hostId = host.id,
+            location = "Musterstraße 12",
+            status = GameNightStatus.PLANNED,
+        )
+        val playerRepo = object : PlayerRepository {
+            override fun getPlayers(): Result<List<Player>> = Result.success(listOf(host))
+            override fun addPlayer(name: String, address: String): Result<Player> = error("")
+            override fun updatePlayer(id: Long, name: String, address: String): Result<Player> = error("")
+            override fun movePlayer(id: Long, direction: MoveDirection): Result<List<Player>> = error("")
+            override fun createNextGameNight(
+                startsAt: LocalDateTime?,
+                preferredHostUid: String?,
+                memberOrderOverride: List<String>?,
+            ): Result<UpcomingGameNight> = error("")
+        }
+        val viewModel = DashboardViewModel(
+            repository = repositoryReturning(Result.success(UpcomingGameNight(gameNight, host))),
+            playerRepository = playerRepo,
+            ioDispatcher = dispatcher,
+        )
+        advanceUntilIdle()
+
+        viewModel.beginEditGameNight()
+
+        val content = viewModel.uiState as DashboardUiState.Content
+        val editor = content.gameNightEditor
+        org.junit.Assert.assertNotNull(editor)
+        assertEquals(42L, editor?.gameNightId)
+        assertEquals(java.time.LocalDate.of(2026, 9, 15), editor?.selectedDate)
+        assertEquals(java.time.LocalTime.of(18, 30), editor?.selectedTime)
+        assertEquals(1L, editor?.selectedHostId)
+    }
+
+    @Test
+    fun `saveEditedGameNight updates repository, triggers notification, and reloads content`() = runTest(dispatcher) {
+        val host = Player(1, "Max Mustermann", "Musterstraße 12", 1)
+        val newHost = Player(2, "Erika Musterfrau", "Neustraße 5", 2)
+        var updatedStartsAt: LocalDateTime? = null
+        var updatedHostId: Long? = null
+        var notificationSent = false
+
+        val startsAt = LocalDateTime.of(2026, 9, 15, 18, 30)
+        val gameNight = GameNight(
+            id = 42,
+            startsAt = startsAt,
+            hostId = host.id,
+            location = "Musterstraße 12",
+            status = GameNightStatus.PLANNED,
+        )
+
+        val repo = object : GameNightRepository {
+            override fun getUpcomingGameNight(): Result<UpcomingGameNight?> =
+                Result.success(UpcomingGameNight(gameNight, host))
+
+            override fun updateGameNight(
+                gameNightId: Long,
+                startsAt: LocalDateTime,
+                hostPlayerId: Long,
+            ): Result<UpcomingGameNight> {
+                updatedStartsAt = startsAt
+                updatedHostId = hostPlayerId
+                val updatedNight = gameNight.copy(startsAt = startsAt, hostId = hostPlayerId)
+                return Result.success(UpcomingGameNight(updatedNight, newHost))
+            }
+        }
+        val playerRepo = object : PlayerRepository {
+            override fun getPlayers(): Result<List<Player>> = Result.success(listOf(host, newHost))
+            override fun addPlayer(name: String, address: String): Result<Player> = error("")
+            override fun updatePlayer(id: Long, name: String, address: String): Result<Player> = error("")
+            override fun movePlayer(id: Long, direction: MoveDirection): Result<List<Player>> = error("")
+            override fun createNextGameNight(
+                startsAt: LocalDateTime?,
+                preferredHostUid: String?,
+                memberOrderOverride: List<String>?,
+            ): Result<UpcomingGameNight> = error("")
+        }
+
+        val viewModel = DashboardViewModel(
+            repository = repo,
+            playerRepository = playerRepo,
+            onSendNotification = { _, _ -> notificationSent = true },
+            ioDispatcher = dispatcher,
+        )
+        advanceUntilIdle()
+
+        viewModel.beginEditGameNight()
+        val newDate = java.time.LocalDate.of(2026, 10, 2)
+        val newTime = java.time.LocalTime.of(20, 0)
+        viewModel.updateGameNightEditorDate(newDate)
+        viewModel.updateGameNightEditorTime(newTime)
+        viewModel.updateGameNightEditorHost(2L)
+
+        viewModel.saveEditedGameNight()
+        advanceUntilIdle()
+
+        assertEquals(LocalDateTime.of(2026, 10, 2, 20, 0), updatedStartsAt)
+        assertEquals(2L, updatedHostId)
+        assertTrue(notificationSent)
+
+        val content = viewModel.uiState as DashboardUiState.Content
+        org.junit.Assert.assertNull(content.gameNightEditor)
+        assertEquals(
+            "Spieleabend wurde erfolgreich aktualisiert. Teilnehmer wurden per Push-Nachricht informiert.",
+            content.message,
+        )
+    }
+
+    @Test
+    fun `saveEditedGameNight handles repository failure`() = runTest(dispatcher) {
+        val host = Player(1, "Max Mustermann", "Musterstraße 12", 1)
+        val gameNight = GameNight(
+            id = 42,
+            startsAt = LocalDateTime.of(2026, 9, 15, 18, 30),
+            hostId = host.id,
+            location = "Musterstraße 12",
+            status = GameNightStatus.PLANNED,
+        )
+
+        val repo = object : GameNightRepository {
+            override fun getUpcomingGameNight(): Result<UpcomingGameNight?> =
+                Result.success(UpcomingGameNight(gameNight, host))
+
+            override fun updateGameNight(
+                gameNightId: Long,
+                startsAt: LocalDateTime,
+                hostPlayerId: Long,
+            ): Result<UpcomingGameNight> = Result.failure(RuntimeException("Speichern fehlgeschlagen"))
+        }
+        val playerRepo = object : PlayerRepository {
+            override fun getPlayers(): Result<List<Player>> = Result.success(listOf(host))
+            override fun addPlayer(name: String, address: String): Result<Player> = error("")
+            override fun updatePlayer(id: Long, name: String, address: String): Result<Player> = error("")
+            override fun movePlayer(id: Long, direction: MoveDirection): Result<List<Player>> = error("")
+            override fun createNextGameNight(
+                startsAt: LocalDateTime?,
+                preferredHostUid: String?,
+                memberOrderOverride: List<String>?,
+            ): Result<UpcomingGameNight> = error("")
+        }
+
+        val viewModel = DashboardViewModel(
+            repository = repo,
+            playerRepository = playerRepo,
+            ioDispatcher = dispatcher,
+        )
+        advanceUntilIdle()
+
+        viewModel.beginEditGameNight()
+        viewModel.saveEditedGameNight()
+        advanceUntilIdle()
+
+        val content = viewModel.uiState as DashboardUiState.Content
+        org.junit.Assert.assertNotNull(content.gameNightEditor)
+        assertEquals("Speichern fehlgeschlagen", content.gameNightEditor?.errorMessage)
+    }
+
+    @Test
+    fun `dismissGameNightEditor removes editor from state`() = runTest(dispatcher) {
+        val host = Player(1, "Max Mustermann", "Musterstraße 12", 1)
+        val gameNight = GameNight(
+            id = 42,
+            startsAt = LocalDateTime.of(2026, 9, 15, 18, 30),
+            hostId = host.id,
+            location = "Musterstraße 12",
+            status = GameNightStatus.PLANNED,
+        )
+        val viewModel = DashboardViewModel(
+            repository = repositoryReturning(Result.success(UpcomingGameNight(gameNight, host))),
+            ioDispatcher = dispatcher,
+        )
+        advanceUntilIdle()
+
+        viewModel.beginEditGameNight()
+        org.junit.Assert.assertNotNull((viewModel.uiState as DashboardUiState.Content).gameNightEditor)
+
+        viewModel.dismissGameNightEditor()
+        org.junit.Assert.assertNull((viewModel.uiState as DashboardUiState.Content).gameNightEditor)
     }
 
     private fun repositoryReturning(

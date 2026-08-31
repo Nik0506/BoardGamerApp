@@ -10,32 +10,64 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.example.boardgamerapp.R
 import com.example.boardgamerapp.ui.theme.BoardGamerAppTheme
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @Composable
 fun DashboardScreen(
     uiState: DashboardUiState,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
+    onEditGameNight: () -> Unit = {},
+    onGameNightDateChange: (LocalDate) -> Unit = {},
+    onGameNightTimeChange: (LocalTime) -> Unit = {},
+    onGameNightHostChange: (Long) -> Unit = {},
+    onSaveEditedGameNight: () -> Unit = {},
+    onDismissGameNightEditor: () -> Unit = {},
     onAddLateNotice: () -> Unit = {},
     onSelectLateNoticePreset: (Int) -> Unit = {},
     onLateNoticeCustomMinutesChange: (String) -> Unit = {},
@@ -86,6 +118,12 @@ fun DashboardScreen(
 
         is DashboardUiState.Content -> DashboardContent(
             uiState = uiState,
+            onEditGameNight = onEditGameNight,
+            onGameNightDateChange = onGameNightDateChange,
+            onGameNightTimeChange = onGameNightTimeChange,
+            onGameNightHostChange = onGameNightHostChange,
+            onSaveEditedGameNight = onSaveEditedGameNight,
+            onDismissGameNightEditor = onDismissGameNightEditor,
             onAddLateNotice = onAddLateNotice,
             onSelectLateNoticePreset = onSelectLateNoticePreset,
             onLateNoticeCustomMinutesChange = onLateNoticeCustomMinutesChange,
@@ -100,6 +138,12 @@ fun DashboardScreen(
 @Composable
 private fun DashboardContent(
     uiState: DashboardUiState.Content,
+    onEditGameNight: () -> Unit,
+    onGameNightDateChange: (LocalDate) -> Unit,
+    onGameNightTimeChange: (LocalTime) -> Unit,
+    onGameNightHostChange: (Long) -> Unit,
+    onSaveEditedGameNight: () -> Unit,
+    onDismissGameNightEditor: () -> Unit,
     onAddLateNotice: () -> Unit,
     onSelectLateNoticePreset: (Int) -> Unit,
     onLateNoticeCustomMinutesChange: (String) -> Unit,
@@ -115,18 +159,53 @@ private fun DashboardContent(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Text(
-                text = "Würfelrunde",
-                modifier = Modifier.padding(top = 24.dp),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            Text(
-                text = "Nächster Spieleabend",
-                modifier = Modifier.padding(top = 4.dp),
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 24.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column {
+                    Text(
+                        text = "Würfelrunde",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Text(
+                        text = "Nächster Spieleabend",
+                        modifier = Modifier.padding(top = 4.dp),
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+
+                var menuExpanded by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(
+                        onClick = { menuExpanded = true },
+                        modifier = Modifier.semantics { contentDescription = "Optionen" },
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_more_vert),
+                            contentDescription = "Optionen",
+                            tint = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Spieleabend editieren") },
+                            onClick = {
+                                menuExpanded = false
+                                onEditGameNight()
+                            },
+                        )
+                    }
+                }
+            }
         }
 
         item {
@@ -243,6 +322,18 @@ private fun DashboardContent(
         }
     }
 
+    uiState.gameNightEditor?.let { editor ->
+        EditGameNightDialog(
+            editor = editor,
+            players = uiState.players,
+            onDateChange = onGameNightDateChange,
+            onTimeChange = onGameNightTimeChange,
+            onHostChange = onGameNightHostChange,
+            onSave = onSaveEditedGameNight,
+            onDismiss = onDismissGameNightEditor,
+        )
+    }
+
     uiState.editor?.let { editor ->
         LateNoticeDialog(
             editor = editor,
@@ -252,6 +343,186 @@ private fun DashboardContent(
             onDismiss = onDismissLateNoticeEditor,
         )
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EditGameNightDialog(
+    editor: GameNightEditorUiState,
+    players: List<DashboardPlayerUiModel>,
+    onDateChange: (LocalDate) -> Unit,
+    onTimeChange: (LocalTime) -> Unit,
+    onHostChange: (Long) -> Unit,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var showDatePicker by remember { mutableStateOf(false) }
+    var showTimePicker by remember { mutableStateOf(false) }
+
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = editor.selectedDate
+            .atStartOfDay(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli(),
+    )
+
+    if (showDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val picked = datePickerState.selectedDateMillis?.let {
+                            Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
+                        } ?: editor.selectedDate
+                        onDateChange(picked)
+                        showDatePicker = false
+                    },
+                ) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("Abbrechen")
+                }
+            },
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
+    if (showTimePicker) {
+        val timePickerState = rememberTimePickerState(
+            initialHour = editor.selectedTime.hour,
+            initialMinute = editor.selectedTime.minute,
+            is24Hour = true,
+        )
+        AlertDialog(
+            onDismissRequest = { showTimePicker = false },
+            title = { Text("Uhrzeit auswählen") },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    TimePicker(state = timePickerState)
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onTimeChange(LocalTime.of(timePickerState.hour, timePickerState.minute))
+                        showTimePicker = false
+                    },
+                ) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTimePicker = false }) {
+                    Text("Abbrechen")
+                }
+            },
+        )
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Spieleabend editieren") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Passe Datum, Uhrzeit und Gastgeber für diesen Spieleabend an.")
+
+                Text("Datum", style = MaterialTheme.typography.titleSmall)
+                OutlinedTextField(
+                    value = editor.selectedDate.format(DateTimeFormatter.ofPattern("dd.MM.yyyy", Locale.GERMAN)),
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Datum") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Button(
+                    onClick = { showDatePicker = true },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Datum ändern")
+                }
+
+                Text("Uhrzeit", style = MaterialTheme.typography.titleSmall)
+                OutlinedTextField(
+                    value = editor.selectedTime.format(DateTimeFormatter.ofPattern("HH:mm 'Uhr'", Locale.GERMAN)),
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Uhrzeit") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Button(
+                    onClick = { showTimePicker = true },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Uhrzeit ändern")
+                }
+
+                Text("Gastgeber", style = MaterialTheme.typography.titleSmall)
+                val selectedMember = players.firstOrNull { it.id == editor.selectedHostId }
+                var expanded by remember { mutableStateOf(false) }
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { expanded = !expanded },
+                ) {
+                    OutlinedTextField(
+                        value = selectedMember?.name ?: "Bitte wählen",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Gastgeber auswählen") },
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true),
+                    )
+
+                    ExposedDropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false },
+                    ) {
+                        players.forEach { player ->
+                            DropdownMenuItem(
+                                text = { Text(player.name) },
+                                onClick = {
+                                    onHostChange(player.id)
+                                    expanded = false
+                                },
+                            )
+                        }
+                    }
+                }
+
+                editor.errorMessage?.let {
+                    Text(
+                        text = it,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onSave,
+                enabled = !editor.isSaving,
+            ) {
+                Text(if (editor.isSaving) "Speichern..." else "Speichern")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Abbrechen")
+            }
+        },
+    )
 }
 
 @Composable
