@@ -85,6 +85,12 @@ data class OrderingSnapshot(
 
 interface GameNightRepository {
     fun getUpcomingGameNight(): Result<UpcomingGameNight?>
+
+    fun updateGameNight(
+        gameNightId: Long,
+        startsAt: java.time.LocalDateTime,
+        hostPlayerId: Long,
+    ): Result<UpcomingGameNight> = Result.failure(UnsupportedOperationException("Nicht implementiert"))
 }
 
 interface LateNoticeRepository {

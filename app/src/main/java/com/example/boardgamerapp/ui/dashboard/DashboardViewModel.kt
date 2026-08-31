@@ -24,6 +24,7 @@ class DashboardViewModel(
     private val playerRepository: PlayerRepository? = null,
     private val lateNoticeRepository: LateNoticeRepository? = null,
     private val currentPlayerId: Long? = null,
+    private val onSendNotification: ((title: String, message: String) -> Unit)? = null,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
@@ -37,6 +38,11 @@ class DashboardViewModel(
     fun loadGameNight() {
         uiState = DashboardUiState.Loading
         viewModelScope.launch {
+            fetchGameNightContent()
+        }
+    }
+
+    private suspend fun fetchGameNightContent(successMessage: String? = null) {
         val upcomingResult = withContext(ioDispatcher) { repository.getUpcomingGameNight() }
         val upcoming = upcomingResult.getOrNull()
         if (upcomingResult.isFailure) {
@@ -44,11 +50,11 @@ class DashboardViewModel(
                 message = upcomingResult.exceptionOrNull()?.message
                     ?: "Der nächste Spieleabend konnte nicht geladen werden.",
             )
-            return@launch
+            return
         }
         if (upcoming == null) {
             uiState = DashboardUiState.Empty
-            return@launch
+            return
         }
 
         val playersResult = withContext(ioDispatcher) { resolvePlayersForDashboard() }
@@ -58,7 +64,7 @@ class DashboardViewModel(
             uiState = DashboardUiState.Error(
                 message = error.message ?: "Die Verspätungsmeldungen konnten nicht geladen werden.",
             )
-            return@launch
+            return
         }
 
         val players = playersResult.getOrThrow()
@@ -68,7 +74,98 @@ class DashboardViewModel(
             players = players,
             selectedPlayerId = currentPlayerId?.takeIf { id -> players.any { it.id == id } },
             lateNotices = noticesResult.getOrThrow().map { it.toUiModel(players) },
+            message = successMessage,
         )
+    }
+
+    fun beginEditGameNight() {
+        val content = uiState as? DashboardUiState.Content ?: return
+        val date = content.gameNight.startsAt?.toLocalDate() ?: java.time.LocalDate.now().plusWeeks(2)
+        val time = content.gameNight.startsAt?.toLocalTime() ?: java.time.LocalTime.of(19, 0)
+        val hostId = content.gameNight.hostId.takeIf { it != 0L }
+            ?: content.players.firstOrNull()?.id
+            ?: 0L
+        uiState = content.copy(
+            gameNightEditor = GameNightEditorUiState(
+                gameNightId = content.gameNight.id,
+                selectedDate = date,
+                selectedTime = time,
+                selectedHostId = hostId,
+            ),
+            message = null,
+            errorMessage = null,
+        )
+    }
+
+    fun updateGameNightEditorDate(date: java.time.LocalDate) {
+        val content = uiState as? DashboardUiState.Content ?: return
+        val currentEditor = content.gameNightEditor ?: return
+        uiState = content.copy(
+            gameNightEditor = currentEditor.copy(selectedDate = date, errorMessage = null),
+        )
+    }
+
+    fun updateGameNightEditorTime(time: java.time.LocalTime) {
+        val content = uiState as? DashboardUiState.Content ?: return
+        val currentEditor = content.gameNightEditor ?: return
+        uiState = content.copy(
+            gameNightEditor = currentEditor.copy(selectedTime = time, errorMessage = null),
+        )
+    }
+
+    fun updateGameNightEditorHost(hostId: Long) {
+        val content = uiState as? DashboardUiState.Content ?: return
+        val currentEditor = content.gameNightEditor ?: return
+        uiState = content.copy(
+            gameNightEditor = currentEditor.copy(selectedHostId = hostId, errorMessage = null),
+        )
+    }
+
+    fun dismissGameNightEditor() {
+        val content = uiState as? DashboardUiState.Content ?: return
+        uiState = content.copy(gameNightEditor = null)
+    }
+
+    fun saveEditedGameNight() {
+        val content = uiState as? DashboardUiState.Content ?: return
+        val editor = content.gameNightEditor ?: return
+        if (editor.selectedHostId == 0L) {
+            uiState = content.copy(
+                gameNightEditor = editor.copy(errorMessage = "Bitte wähle einen Gastgeber aus."),
+            )
+            return
+        }
+
+        val startsAt = java.time.LocalDateTime.of(editor.selectedDate, editor.selectedTime)
+        uiState = content.copy(gameNightEditor = editor.copy(isSaving = true, errorMessage = null))
+
+        viewModelScope.launch {
+            val result = withContext(ioDispatcher) {
+                repository.updateGameNight(
+                    gameNightId = editor.gameNightId,
+                    startsAt = startsAt,
+                    hostPlayerId = editor.selectedHostId,
+                )
+            }
+            result.fold(
+                onSuccess = { updated ->
+                    onSendNotification?.invoke(
+                        "Spieleabend aktualisiert",
+                        "Neuer Termin: ${startsAt.format(dateFormatter)}, ${startsAt.format(timeFormatter)} bei ${updated.host.name}",
+                    )
+                    fetchGameNightContent(
+                        successMessage = "Spieleabend wurde erfolgreich aktualisiert. Teilnehmer wurden per Push-Nachricht informiert.",
+                    )
+                },
+                onFailure = { error ->
+                    uiState = content.copy(
+                        gameNightEditor = editor.copy(
+                            isSaving = false,
+                            errorMessage = error.message ?: "Der Spieleabend konnte nicht aktualisiert werden.",
+                        ),
+                    )
+                },
+            )
         }
     }
 
@@ -122,11 +219,7 @@ class DashboardViewModel(
         viewModelScope.launch {
         withContext(ioDispatcher) { lateNoticeRepository.addLateNotice(playerId, minutes) }.fold(
             onSuccess = {
-                loadGameNight()
-                val loaded = uiState as? DashboardUiState.Content
-                if (loaded != null) {
-                    uiState = loaded.copy(message = "Verspätungsmeldung wurde gespeichert.")
-                }
+                fetchGameNightContent(successMessage = "Verspätungsmeldung wurde gespeichert.")
             },
             onFailure = { error ->
                 uiState = content.copy(
@@ -157,10 +250,13 @@ class DashboardViewModel(
     }
 
     private fun UpcomingGameNight.toUiModel(): GameNightUiModel = GameNightUiModel(
+        id = gameNight.id,
         date = gameNight.startsAt.format(dateFormatter),
         time = gameNight.startsAt.format(timeFormatter),
         hostName = host.name,
+        hostId = host.id,
         location = gameNight.location,
+        startsAt = gameNight.startsAt,
     )
 
     private fun LateNotice.toUiModel(players: List<DashboardPlayerUiModel>) = LateNoticeUiModel(
@@ -186,12 +282,22 @@ class DashboardViewModel(
                 }
             }
 
-        fun factory(repository: BoardGamerRepository, currentPlayerId: Long): ViewModelProvider.Factory =
+        fun factory(
+            repository: BoardGamerRepository,
+            currentPlayerId: Long,
+            onSendNotification: ((title: String, message: String) -> Unit)? = null,
+        ): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     require(modelClass.isAssignableFrom(DashboardViewModel::class.java))
-                    return DashboardViewModel(repository, repository, repository, currentPlayerId) as T
+                    return DashboardViewModel(
+                        repository = repository,
+                        playerRepository = repository,
+                        lateNoticeRepository = repository,
+                        currentPlayerId = currentPlayerId,
+                        onSendNotification = onSendNotification,
+                    ) as T
                 }
             }
     }

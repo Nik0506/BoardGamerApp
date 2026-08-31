@@ -182,6 +182,67 @@ class FirebaseGameNightRepository(
         }
     }
 
+    override fun updateGameNight(
+        gameNightId: Long,
+        startsAt: LocalDateTime,
+        hostPlayerId: Long,
+    ): Result<UpcomingGameNight> = runCatching {
+        firestoreCall {
+            val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
+            val groupRef = firestore.collection("groups").document(groupId)
+            val gameNightDoc = currentGameNightDocument(groupId, gameNightId)
+                ?: error("Der Spieleabend wurde nicht gefunden.")
+
+            val membersSnapshot = Tasks.await(groupRef.collection("members").get())
+            val currentGroupMembers = membersSnapshot.documents.mapNotNull { doc ->
+                runCatching { GroupMember.fromMap(doc.data ?: emptyMap()) }.getOrNull()
+            }
+            val targetMember = currentGroupMembers.firstOrNull { it.uid.hashCode().toLong() == hostPlayerId }
+                ?: error("Der ausgewählte Gastgeber wurde in der Gruppe nicht gefunden.")
+
+            val hostAddress = resolveHostAddress(groupId, targetMember.uid)
+            val location = hostAddress.ifBlank { "Keine Adresse hinterlegt" }
+
+            val updateData = mapOf(
+                "startsAt" to Timestamp(Date.from(startsAt.atZone(ZoneId.systemDefault()).toInstant())),
+                "hostUid" to targetMember.uid,
+                "location" to location,
+                "updatedAt" to Timestamp.now(),
+            )
+            Tasks.await(gameNightDoc.reference.update(updateData))
+
+            val savedOrder = ((Tasks.await(groupRef.get()).get("memberOrder") as? List<*>)
+                ?.mapNotNull { it as? String }
+                ?: currentGroupMembers.map { it.uid })
+            val rotatedOrder = rotateHostList(savedOrder, targetMember.uid)
+            if (rotatedOrder != savedOrder) {
+                Tasks.await(groupRef.update("memberOrder", rotatedOrder, "updatedAt", Timestamp.now()))
+            }
+
+            val stableId = gameNightDoc.getLong("id") ?: gameNightDoc.id.hashCode().toLong()
+            val updatedGameNight = GameNight(
+                id = stableId,
+                startsAt = startsAt,
+                hostId = targetMember.uid.hashCode().toLong(),
+                location = location,
+                status = GameNightStatus.valueOf(gameNightDoc.getString("status") ?: GameNightStatus.PLANNED.name),
+            )
+            val hostPlayer = Player(
+                id = targetMember.uid.hashCode().toLong(),
+                name = targetMember.displayName.ifBlank { "Gastgeber" },
+                address = location,
+                hostOrder = targetMember.hostOrder,
+            )
+            UpcomingGameNight(gameNight = updatedGameNight, host = hostPlayer)
+        }
+    }
+
+    private fun rotateHostList(memberUids: List<String>, preferredUid: String): List<String> {
+        if (preferredUid.isBlank() || memberUids.isEmpty()) return memberUids
+        val others = memberUids.filter { it != preferredUid }
+        return listOf(preferredUid) + others
+    }
+
     override fun getGameSuggestions(): Result<GameNightSuggestions?> = runCatching {
         val groupId = currentGroupId() ?: return@runCatching null
         val night = getUpcomingGameNight().getOrNull() ?: return@runCatching null
@@ -916,8 +977,9 @@ class FirebaseGameNightRepository(
         val hostUid = getString("hostUid") ?: return null
         val location = getString("location") ?: ""
         val statusValue = getString("status") ?: GameNightStatus.PLANNED.name
+        val stableId = getLong("id") ?: id.hashCode().toLong()
         return GameNight(
-            id = id.hashCode().toLong(),
+            id = stableId,
             startsAt = startsAt,
             hostId = hostUid.hashCode().toLong(),
             location = location,

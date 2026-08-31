@@ -8,6 +8,7 @@ Würfelrunde organisiert gemeinsame Brettspielabende über mehrere Geräte. Anme
 - Private Spielgruppen erstellen und per Gruppen-ID beitreten
 - Aktive Gruppe auswählen und Mitgliederreihenfolge verwalten
 - Nächsten Spieleabend mit Dialog, Datum, Gastgeber-Auswahl und Reihenfolge-Logik planen
+- Bestehenden Spieleabend über Optionsmenü editieren (Datum, Uhrzeit, Gastgeber per Dropdown) inklusive Push-Benachrichtigung
 - Spiele vorschlagen und pro Mitglied abstimmen
 - Verspätungsmeldungen für die Gruppe speichern
 - Essenskategorien verwalten und darüber abstimmen
@@ -22,7 +23,7 @@ Würfelrunde organisiert gemeinsame Brettspielabende über mehrere Geräte. Anme
 
 Firestore ist die einzige fachliche Datenquelle und Source of Truth. Die frühere Room-Datenbank und das In-Memory-Repository wurden entfernt. Die App besitzt keinen fachlichen Offline-Modus und deklariert Internet- sowie Netzwerkstatuszugriff ausdrücklich. Firestore verwendet keinen persistenten Datenträger-Cache; ohne Verbindung werden Fehler angezeigt und Änderungen nicht lokal vorgemerkt.
 
-Aktueller Funktionsfortschritt: Der Dialog zum Planen des nächsten Spieleabends wurde mit DatePicker, Gastgeber-Dropdown und Reihenfolge-Logik ergänzt. Der gewählte Host wird bevorzugt und danach in der Gruppenreihenfolge hinten platziert, bevor der Termin in Firestore gespeichert wird.
+Aktueller Funktionsfortschritt: Spieleabende können über ein Optionsmenü auf der Termin-Seite editiert werden. In einer Editierenmaske lassen sich Datum (per DatePicker), Uhrzeit (per TimePicker) und der Gastgeber (per Dropdown aus allen Gruppenmitgliedern) anpassen, speichern oder abbrechen. Bei erfolgreicher Änderung wird eine Push-Benachrichtigung für die Gruppe ausgelöst.
 
 Die aktive Gruppe wird im Firestore-Benutzerprofil gespeichert. Dadurch greifen Dashboard, Termine, Abstimmungen und Bestellungen auf dieselbe ausgewählte Gruppe zu.
 
@@ -55,7 +56,7 @@ Jetpack Compose → ViewModel → Repository → Firebase Auth / Firestore
 ## Aktueller Status und Meilensteine
 
 - MS2: gemeinsame Firebase-Gruppe, Auth, Mitglieder, gemeinsame Datenhaltung und Spiel-/Essens-/Bewertungsfunktionen umgesetzt
-- MS3: Spieleabend planen mit Dialog, Datum, Host-Auswahl und Reihenfolge-Logik umgesetzt
+- MS3: Spieleabend planen und editieren mit Dialogen, DatePicker, TimePicker, Host-Auswahl, Reihenfolge-Logik und Push-Benachrichtigungen umgesetzt
 - M2-3: Online-Robustheit und Firestore-Regelhardening als nächster Schwerpunkt
 
 ## Bauen und testen
