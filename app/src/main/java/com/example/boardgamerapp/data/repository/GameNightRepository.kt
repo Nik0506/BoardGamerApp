@@ -1,5 +1,7 @@
 package com.example.boardgamerapp.data.repository
 
+import com.example.boardgamerapp.domain.model.AttendanceStatusType
+import com.example.boardgamerapp.domain.model.GameNightAttendance
 import com.example.boardgamerapp.domain.model.GameNight
 import com.example.boardgamerapp.domain.model.BoardGame
 import com.example.boardgamerapp.domain.model.LateNotice
@@ -93,6 +95,17 @@ interface GameNightRepository {
     ): Result<UpcomingGameNight> = Result.failure(UnsupportedOperationException("Nicht implementiert"))
 }
 
+interface AttendanceRepository {
+    suspend fun getAttendances(): Result<List<GameNightAttendance>>
+
+    suspend fun setAttendance(
+        playerId: Long,
+        status: AttendanceStatusType,
+        minutesLate: Int? = null,
+        reason: String? = null,
+    ): Result<GameNightAttendance>
+}
+
 interface LateNoticeRepository {
     suspend fun getLateNotices(): Result<List<LateNotice>>
 
@@ -167,6 +180,7 @@ interface OrderingRepository {
 
 interface BoardGamerRepository :
     GameNightRepository,
+    AttendanceRepository,
     LateNoticeRepository,
     PlayerRepository,
     GameSuggestionRepository,

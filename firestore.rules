@@ -56,6 +56,10 @@ service cloud.firestore {
           allow read, write: if isGroupMember(groupId);
         }
 
+        match /attendance/{attendanceId} {
+          allow read, write: if isGroupMember(groupId);
+        }
+
         match /foodCategories/{categoryId} {
           allow read, write: if isGroupMember(groupId);
         }

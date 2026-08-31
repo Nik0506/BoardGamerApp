@@ -1,6 +1,8 @@
 package com.example.boardgamerapp.data.repository
 
 import com.example.boardgamerapp.data.group.GroupMember
+import com.example.boardgamerapp.domain.model.AttendanceStatusType
+import com.example.boardgamerapp.domain.model.GameNightAttendance
 import com.example.boardgamerapp.domain.model.BoardGame
 import com.example.boardgamerapp.domain.model.FoodCategory
 import com.example.boardgamerapp.domain.model.FoodOrder
@@ -266,6 +268,109 @@ class FirebaseGameNightRepository(
         }
     }
 
+    override suspend fun getAttendances(): Result<List<GameNightAttendance>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val groupId = currentGroupId() ?: return@runCatching emptyList()
+            val night = getUpcomingGameNight().getOrNull() ?: return@runCatching emptyList()
+            val gameNightDocId = currentGameNightDocId(groupId) ?: return@runCatching emptyList()
+            val snapshot = firestore.collection("groups")
+                .document(groupId)
+                .collection("gameNights")
+                .document(gameNightDocId)
+                .collection("attendance")
+                .get()
+                .await()
+
+            snapshot.documents.mapNotNull { doc ->
+                val playerId = doc.getLong("playerId") ?: return@mapNotNull null
+                val statusStr = doc.getString("status") ?: AttendanceStatusType.PENDING.name
+                val status = runCatching { AttendanceStatusType.valueOf(statusStr) }.getOrDefault(AttendanceStatusType.PENDING)
+                val minutesLate = doc.getLong("minutesLate")?.toInt()
+                val reason = doc.getString("reason")
+                val createdAt = doc.getTimestamp("createdAt")?.toDate()?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDateTime() ?: LocalDateTime.now()
+                val updatedAt = doc.getTimestamp("updatedAt")?.toDate()?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDateTime() ?: createdAt
+                val id = doc.getLong("id") ?: doc.id.hashCode().toLong()
+                GameNightAttendance(
+                    id = id,
+                    playerId = playerId,
+                    gameNightId = night.gameNight.id,
+                    status = status,
+                    minutesLate = minutesLate,
+                    reason = reason,
+                    createdAt = createdAt,
+                    updatedAt = updatedAt,
+                )
+            }
+        }
+    }
+
+    override suspend fun setAttendance(
+        playerId: Long,
+        status: AttendanceStatusType,
+        minutesLate: Int?,
+        reason: String?,
+    ): Result<GameNightAttendance> = withContext(Dispatchers.IO) {
+        runCatching {
+            requireCurrentPlayer(playerId)
+            val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
+            val night = getUpcomingGameNight().getOrNull() ?: error("Es gibt noch keinen nächsten Spieleabend.")
+            val gameNightDocId = currentGameNightDocId(groupId) ?: error("Es gibt noch keinen nächsten Spieleabend.")
+            val docRef = firestore.collection("groups")
+                .document(groupId)
+                .collection("gameNights")
+                .document(gameNightDocId)
+                .collection("attendance")
+                .document(playerId.toString())
+
+            val now = LocalDateTime.now()
+            val attendanceId = playerId
+            val data = mutableMapOf<String, Any>(
+                "id" to attendanceId,
+                "playerId" to playerId,
+                "gameNightId" to night.gameNight.id,
+                "status" to status.name,
+                "updatedAt" to Timestamp.now(),
+            )
+            if (minutesLate != null) {
+                data["minutesLate"] = minutesLate
+            }
+            if (!reason.isNullOrBlank()) {
+                data["reason"] = reason.trim()
+            }
+
+            docRef.set(data).await()
+
+            if (status == AttendanceStatusType.LATE && minutesLate != null) {
+                val lateDocRef = firestore.collection("groups")
+                    .document(groupId)
+                    .collection("gameNights")
+                    .document(gameNightDocId)
+                    .collection("lateNotices")
+                    .document(playerId.toString())
+                lateDocRef.set(
+                    mapOf(
+                        "id" to lateDocRef.id.hashCode().toLong(),
+                        "playerId" to playerId,
+                        "gameNightId" to night.gameNight.id,
+                        "minutes" to minutesLate,
+                        "createdAt" to Timestamp.now(),
+                    ),
+                ).await()
+            }
+
+            GameNightAttendance(
+                id = attendanceId,
+                playerId = playerId,
+                gameNightId = night.gameNight.id,
+                status = status,
+                minutesLate = minutesLate,
+                reason = reason?.trim(),
+                createdAt = now,
+                updatedAt = now,
+            )
+        }
+    }
+
     override suspend fun getLateNotices(): Result<List<LateNotice>> = withContext(Dispatchers.IO) {
         runCatching {
             val groupId = currentGroupId() ?: return@runCatching emptyList()
@@ -324,7 +429,19 @@ class FirebaseGameNightRepository(
                     "createdAt" to Timestamp.now(),
                 ),
             ).await()
+
+            // Update attendance record as well
+            setAttendance(playerId, AttendanceStatusType.LATE, minutes, null)
+
             notice
+        }
+    }
+
+    suspend fun saveFcmToken(token: String): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val uid = auth.currentUser?.uid ?: error("Nicht angemeldet")
+            firestore.collection("users").document(uid).update("fcmToken", token, "tokenUpdatedAt", Timestamp.now()).await()
+            Unit
         }
     }
 

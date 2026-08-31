@@ -68,6 +68,11 @@ fun DashboardScreen(
     onGameNightHostChange: (Long) -> Unit = {},
     onSaveEditedGameNight: () -> Unit = {},
     onDismissGameNightEditor: () -> Unit = {},
+    onConfirmAttending: () -> Unit = {},
+    onBeginDeclineAttendance: () -> Unit = {},
+    onDeclineReasonChange: (String) -> Unit = {},
+    onConfirmDeclineAttendance: () -> Unit = {},
+    onDismissDeclineAttendance: () -> Unit = {},
     onAddLateNotice: () -> Unit = {},
     onSelectLateNoticePreset: (Int) -> Unit = {},
     onLateNoticeCustomMinutesChange: (String) -> Unit = {},
@@ -124,6 +129,11 @@ fun DashboardScreen(
             onGameNightHostChange = onGameNightHostChange,
             onSaveEditedGameNight = onSaveEditedGameNight,
             onDismissGameNightEditor = onDismissGameNightEditor,
+            onConfirmAttending = onConfirmAttending,
+            onBeginDeclineAttendance = onBeginDeclineAttendance,
+            onDeclineReasonChange = onDeclineReasonChange,
+            onConfirmDeclineAttendance = onConfirmDeclineAttendance,
+            onDismissDeclineAttendance = onDismissDeclineAttendance,
             onAddLateNotice = onAddLateNotice,
             onSelectLateNoticePreset = onSelectLateNoticePreset,
             onLateNoticeCustomMinutesChange = onLateNoticeCustomMinutesChange,
@@ -144,6 +154,11 @@ private fun DashboardContent(
     onGameNightHostChange: (Long) -> Unit,
     onSaveEditedGameNight: () -> Unit,
     onDismissGameNightEditor: () -> Unit,
+    onConfirmAttending: () -> Unit,
+    onBeginDeclineAttendance: () -> Unit,
+    onDeclineReasonChange: (String) -> Unit,
+    onConfirmDeclineAttendance: () -> Unit,
+    onDismissDeclineAttendance: () -> Unit,
     onAddLateNotice: () -> Unit,
     onSelectLateNoticePreset: (Int) -> Unit,
     onLateNoticeCustomMinutesChange: (String) -> Unit,
@@ -252,61 +267,163 @@ private fun DashboardContent(
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Verspätung melden",
+                        text = "Mein Teilnahmestatus",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold,
                     )
+                    val currentAtt = uiState.currentAttendance
+                    val statusDescription = when (currentAtt?.status) {
+                        com.example.boardgamerapp.domain.model.AttendanceStatusType.ATTENDING -> "Du hast zugesagt (pünktlich dabei)."
+                        com.example.boardgamerapp.domain.model.AttendanceStatusType.LATE -> "Du kommst ca. ${currentAtt.minutesLate ?: 10} Minuten später."
+                        com.example.boardgamerapp.domain.model.AttendanceStatusType.DECLINED -> "Du hast abgesagt." + (currentAtt.reason?.let { " ($it)" } ?: "")
+                        com.example.boardgamerapp.domain.model.AttendanceStatusType.PENDING, null -> "Du hast für diesen Abend noch nicht reagiert."
+                    }
                     Text(
-                        text = uiState.players.firstOrNull { it.id == uiState.selectedPlayerId }
-                            ?.let { "Die Meldung wird für dein Konto ${it.name} gespeichert." }
-                            ?: "Dein Konto ist kein Mitglied der aktiven Gruppe.",
+                        text = if (uiState.selectedPlayerId != null) statusDescription else "Dein Konto ist kein Mitglied der aktiven Gruppe.",
                         modifier = Modifier.padding(top = 6.dp),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Button(
-                        onClick = onAddLateNotice,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 12.dp),
-                        enabled = uiState.selectedPlayerId != null,
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Text("Verspätung melden")
+                        Button(
+                            onClick = onConfirmAttending,
+                            modifier = Modifier.weight(1f),
+                            enabled = uiState.selectedPlayerId != null,
+                        ) {
+                            Text("Zusagen")
+                        }
+                        Button(
+                            onClick = onAddLateNotice,
+                            modifier = Modifier.weight(1f),
+                            enabled = uiState.selectedPlayerId != null,
+                        ) {
+                            Text("Verspäten")
+                        }
+                        Button(
+                            onClick = onBeginDeclineAttendance,
+                            modifier = Modifier.weight(1f),
+                            enabled = uiState.selectedPlayerId != null,
+                        ) {
+                            Text("Absagen")
+                        }
                     }
                 }
             }
         }
 
         item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Teilnahme der Gruppe",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
             Text(
-                text = "Aktuelle Meldungen",
+                text = "${uiState.attendingCount} Zugesagt • ${uiState.lateCount} Verspätet • ${uiState.declinedCount} Abgesagt • ${uiState.pendingCount} Offen",
                 modifier = Modifier.padding(top = 4.dp),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Medium,
             )
         }
-        if (uiState.lateNotices.isEmpty()) {
+
+        if (uiState.attendances.isEmpty()) {
             item {
                 Text(
-                    text = "Für diesen Spieleabend gibt es noch keine Verspätungsmeldungen.",
+                    text = "Noch keine Gruppenmitglieder vorhanden.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         } else {
-            items(uiState.lateNotices, key = { it.id }) { notice ->
+            items(uiState.attendances, key = { it.playerId }) { att ->
                 OutlinedCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "${notice.playerName} kommt etwa ${notice.minutes} Minuten später.",
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                        Text(
-                            text = "Gespeichert: ${notice.createdAt}",
-                            modifier = Modifier.padding(top = 4.dp),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = att.playerName,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                                if (att.isCurrentPlayer) {
+                                    Text(
+                                        text = " (Du)",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(start = 4.dp),
+                                    )
+                                }
+                            }
+                            if (att.status == com.example.boardgamerapp.domain.model.AttendanceStatusType.DECLINED && !att.reason.isNullOrBlank()) {
+                                Text(
+                                    text = "Grund: ${att.reason}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.padding(top = 2.dp),
+                                )
+                            }
+                            if (att.updatedAt != null) {
+                                Text(
+                                    text = "Aktualisiert: ${att.updatedAt}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 2.dp),
+                                )
+                            }
+                        }
+
+                        val badgeText = when (att.status) {
+                            com.example.boardgamerapp.domain.model.AttendanceStatusType.ATTENDING -> "✅ Dabei"
+                            com.example.boardgamerapp.domain.model.AttendanceStatusType.LATE -> "⏰ +${att.minutesLate ?: 10} Min"
+                            com.example.boardgamerapp.domain.model.AttendanceStatusType.DECLINED -> "❌ Abgesagt"
+                            com.example.boardgamerapp.domain.model.AttendanceStatusType.PENDING -> "⏳ Offen"
+                        }
+                        val badgeColor = when (att.status) {
+                            com.example.boardgamerapp.domain.model.AttendanceStatusType.ATTENDING -> MaterialTheme.colorScheme.primaryContainer
+                            com.example.boardgamerapp.domain.model.AttendanceStatusType.LATE -> MaterialTheme.colorScheme.tertiaryContainer
+                            com.example.boardgamerapp.domain.model.AttendanceStatusType.DECLINED -> MaterialTheme.colorScheme.errorContainer
+                            com.example.boardgamerapp.domain.model.AttendanceStatusType.PENDING -> MaterialTheme.colorScheme.surfaceVariant
+                        }
+                        val textColor = when (att.status) {
+                            com.example.boardgamerapp.domain.model.AttendanceStatusType.ATTENDING -> MaterialTheme.colorScheme.onPrimaryContainer
+                            com.example.boardgamerapp.domain.model.AttendanceStatusType.LATE -> MaterialTheme.colorScheme.onTertiaryContainer
+                            com.example.boardgamerapp.domain.model.AttendanceStatusType.DECLINED -> MaterialTheme.colorScheme.onErrorContainer
+                            com.example.boardgamerapp.domain.model.AttendanceStatusType.PENDING -> MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+
+                        androidx.compose.material3.Surface(
+                            color = badgeColor,
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                        ) {
+                            Text(
+                                text = badgeText,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = textColor,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
                     }
                 }
             }
@@ -314,7 +431,7 @@ private fun DashboardContent(
 
         item {
             Text(
-                text = "Die Verspätungsmeldungen sind für die aktuelle Spielrunde relevant und werden mit der Gruppe geteilt.",
+                text = "Die Statusmeldungen werden mit der Gruppe geteilt und halten alle auf dem aktuellen Stand.",
                 modifier = Modifier.padding(top = 4.dp, bottom = 24.dp),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -343,6 +460,77 @@ private fun DashboardContent(
             onDismiss = onDismissLateNoticeEditor,
         )
     }
+
+    uiState.declineEditor?.let { editor ->
+        DeclineGameNightDialog(
+            editor = editor,
+            onReasonChange = onDeclineReasonChange,
+            onConfirm = onConfirmDeclineAttendance,
+            onDismiss = onDismissDeclineAttendance,
+        )
+    }
+}
+
+@Composable
+private fun DeclineGameNightDialog(
+    editor: AttendanceDeclineEditorUiState,
+    onReasonChange: (String) -> Unit,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Absage zum Spieleabend") },
+        text = {
+            Column {
+                Text(
+                    text = "Möchtest du deine Teilnahme für diesen Spieleabend absagen?",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                OutlinedTextField(
+                    value = editor.reason,
+                    onValueChange = onReasonChange,
+                    label = { Text("Grund für die Absage (optional)") },
+                    placeholder = { Text("z. B. krank, Termin, unterwegs") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp),
+                    singleLine = true,
+                )
+                editor.errorMessage?.let { error ->
+                    Text(
+                        text = error,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                enabled = !editor.isSaving,
+            ) {
+                if (editor.isSaving) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.height(16.dp),
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Text("Absage bestätigen")
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !editor.isSaving,
+            ) {
+                Text("Abbrechen")
+            }
+        },
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
