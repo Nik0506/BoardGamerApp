@@ -9,6 +9,8 @@ Würfelrunde organisiert gemeinsame Brettspielabende über mehrere Geräte. Anme
 - Aktive Gruppe auswählen und Mitgliederreihenfolge verwalten
 - Nächsten Spieleabend mit Dialog, Datum, Gastgeber-Auswahl und Reihenfolge-Logik planen
 - Bestehenden Spieleabend über Optionsmenü editieren (Datum, Uhrzeit, Gastgeber per Dropdown) inklusive Push-Benachrichtigung
+- Live-Netzwerküberwachung mit automatischem Offline-Banner bei Verbindungsverlust
+- Vollständig asynchrone, nicht blockierende Coroutine-Architektur für alle Firestore-Aufrufe
 - Spiele vorschlagen und pro Mitglied abstimmen
 - Verspätungsmeldungen für die Gruppe speichern
 - Essenskategorien verwalten und darüber abstimmen
@@ -23,14 +25,14 @@ Würfelrunde organisiert gemeinsame Brettspielabende über mehrere Geräte. Anme
 
 Firestore ist die einzige fachliche Datenquelle und Source of Truth. Die frühere Room-Datenbank und das In-Memory-Repository wurden entfernt. Die App besitzt keinen fachlichen Offline-Modus und deklariert Internet- sowie Netzwerkstatuszugriff ausdrücklich. Firestore verwendet keinen persistenten Datenträger-Cache; ohne Verbindung werden Fehler angezeigt und Änderungen nicht lokal vorgemerkt.
 
-Aktueller Funktionsfortschritt: Spieleabende können über ein Optionsmenü auf der Termin-Seite editiert werden. In einer Editierenmaske lassen sich Datum (per DatePicker), Uhrzeit (per TimePicker) und der Gastgeber (per Dropdown aus allen Gruppenmitgliedern) anpassen, speichern oder abbrechen. Bei erfolgreicher Änderung wird eine Push-Benachrichtigung für die Gruppe ausgelöst.
+Aktueller Funktionsfortschritt: Mit **MS2 – Iteration 4: Online-Robustheit & Asynchrone Architektur** wurde das Repository vollständig auf nicht-blockierende Suspend-Funktionen und Kotlin Coroutines umgestellt (`runBlocking` vollständig entfernt). Zudem überwacht ein `LiveNetworkMonitor` den Netzwerkstatus und blendet bei Verbindungsunterbrechung ein Offline-Banner ein. Die Firestore-Sicherheitsregeln sind in `firestore.rules` versioniert.
 
 Die aktive Gruppe wird im Firestore-Benutzerprofil gespeichert. Dadurch greifen Dashboard, Termine, Abstimmungen und Bestellungen auf dieselbe ausgewählte Gruppe zu.
 
 Persönliche Aktionen sind fest an die Firebase-UID gebunden. Es gibt keine manuelle Spielerauswahl; für Angaben eines anderen Mitglieds muss dieses sich mit seinem eigenen Konto anmelden.
 
 ```text
-Jetpack Compose → ViewModel → Repository → Firebase Auth / Firestore
+Jetpack Compose → ViewModel → Repository (suspend / async) → Firebase Auth / Firestore
 ```
 
 ## Technik
@@ -38,8 +40,10 @@ Jetpack Compose → ViewModel → Repository → Firebase Auth / Firestore
 - Kotlin und Jetpack Compose
 - Material 3 mit adaptiver Navigation
 - ViewModel und speicherbarer Compose-Zustand
+- Asynchrone Kotlin Coroutines (`suspend fun`, `.await()`)
+- Live Network Callback Observer (`ConnectivityManager`)
 - Firebase Authentication
-- Cloud Firestore
+- Cloud Firestore mit versionierten `firestore.rules`
 - Gradle Kotlin DSL
 - `minSdk 24`, `targetSdk 36`
 
@@ -49,15 +53,16 @@ Jetpack Compose → ViewModel → Repository → Firebase Auth / Firestore
 - JDK 21, beispielsweise das mit Android Studio ausgelieferte JDK
 - ein erreichbares Firebase-Projekt
 - aktivierte E-Mail/Passwort-Anmeldung
-- passende Firestore-Sicherheitsregeln
+- passende Firestore-Sicherheitsregeln (`firestore.rules`)
 - gültige `app/google-services.json`
 - Internetverbindung auf Emulator oder Gerät
 
 ## Aktueller Status und Meilensteine
 
 - MS2: gemeinsame Firebase-Gruppe, Auth, Mitglieder, gemeinsame Datenhaltung und Spiel-/Essens-/Bewertungsfunktionen umgesetzt
+- MS2 – Iteration 4: Online-Robustheit, asynchrone Coroutines, Live-Netzwerkmonitor und versionierte `firestore.rules` umgesetzt
 - MS3: Spieleabend planen und editieren mit Dialogen, DatePicker, TimePicker, Host-Auswahl, Reihenfolge-Logik und Push-Benachrichtigungen umgesetzt
-- M2-3: Online-Robustheit und Firestore-Regelhardening als nächster Schwerpunkt
+- M2-4: Echte Push-Benachrichtigungen (FCM) als nächster Meilenstein
 
 ## Bauen und testen
 

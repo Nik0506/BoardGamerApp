@@ -1,0 +1,77 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isUser(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isGroupMember(groupId) {
+      return isAuthenticated() && (
+        exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) ||
+        request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberOrder
+      );
+    }
+
+    // User profiles
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isUser(userId);
+
+      match /groups/{groupId} {
+        allow read, write: if isUser(userId);
+      }
+    }
+
+    // Groups
+    match /groups/{groupId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isGroupMember(groupId) || isAuthenticated();
+
+      // Group members
+      match /members/{memberId} {
+        allow read: if isAuthenticated();
+        allow create, update, delete: if isUser(memberId) || isGroupMember(groupId);
+      }
+
+      // Game nights and subcollections
+      match /gameNights/{gameNightId} {
+        allow read, write: if isGroupMember(groupId);
+
+        match /suggestions/{suggestionId} {
+          allow read, write: if isGroupMember(groupId);
+        }
+
+        match /votes/{voteId} {
+          allow read, write: if isGroupMember(groupId);
+        }
+
+        match /lateNotices/{noticeId} {
+          allow read, write: if isGroupMember(groupId);
+        }
+
+        match /foodCategories/{categoryId} {
+          allow read, write: if isGroupMember(groupId);
+        }
+
+        match /foodVotes/{voteId} {
+          allow read, write: if isGroupMember(groupId);
+        }
+
+        match /orders/{orderId} {
+          allow read, write: if isGroupMember(groupId);
+        }
+
+        match /reviews/{reviewId} {
+          allow read, write: if isGroupMember(groupId);
+        }
+      }
+    }
+  }
+}

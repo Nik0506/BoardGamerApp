@@ -92,11 +92,11 @@ class DashboardViewModelTest {
             status = GameNightStatus.PLANNED,
         )
         val playerRepo = object : PlayerRepository {
-            override fun getPlayers(): Result<List<Player>> = Result.success(listOf(host))
-            override fun addPlayer(name: String, address: String): Result<Player> = error("")
-            override fun updatePlayer(id: Long, name: String, address: String): Result<Player> = error("")
-            override fun movePlayer(id: Long, direction: MoveDirection): Result<List<Player>> = error("")
-            override fun createNextGameNight(
+            override suspend fun getPlayers(): Result<List<Player>> = Result.success(listOf(host))
+            override suspend fun addPlayer(name: String, address: String): Result<Player> = error("")
+            override suspend fun updatePlayer(id: Long, name: String, address: String): Result<Player> = error("")
+            override suspend fun movePlayer(id: Long, direction: MoveDirection): Result<List<Player>> = error("")
+            override suspend fun createNextGameNight(
                 startsAt: LocalDateTime?,
                 preferredHostUid: String?,
                 memberOrderOverride: List<String>?,
@@ -138,10 +138,10 @@ class DashboardViewModelTest {
         )
 
         val repo = object : GameNightRepository {
-            override fun getUpcomingGameNight(): Result<UpcomingGameNight?> =
+            override suspend fun getUpcomingGameNight(): Result<UpcomingGameNight?> =
                 Result.success(UpcomingGameNight(gameNight, host))
 
-            override fun updateGameNight(
+            override suspend fun updateGameNight(
                 gameNightId: Long,
                 startsAt: LocalDateTime,
                 hostPlayerId: Long,
@@ -153,11 +153,11 @@ class DashboardViewModelTest {
             }
         }
         val playerRepo = object : PlayerRepository {
-            override fun getPlayers(): Result<List<Player>> = Result.success(listOf(host, newHost))
-            override fun addPlayer(name: String, address: String): Result<Player> = error("")
-            override fun updatePlayer(id: Long, name: String, address: String): Result<Player> = error("")
-            override fun movePlayer(id: Long, direction: MoveDirection): Result<List<Player>> = error("")
-            override fun createNextGameNight(
+            override suspend fun getPlayers(): Result<List<Player>> = Result.success(listOf(host, newHost))
+            override suspend fun addPlayer(name: String, address: String): Result<Player> = error("")
+            override suspend fun updatePlayer(id: Long, name: String, address: String): Result<Player> = error("")
+            override suspend fun movePlayer(id: Long, direction: MoveDirection): Result<List<Player>> = error("")
+            override suspend fun createNextGameNight(
                 startsAt: LocalDateTime?,
                 preferredHostUid: String?,
                 memberOrderOverride: List<String>?,
@@ -206,21 +206,21 @@ class DashboardViewModelTest {
         )
 
         val repo = object : GameNightRepository {
-            override fun getUpcomingGameNight(): Result<UpcomingGameNight?> =
+            override suspend fun getUpcomingGameNight(): Result<UpcomingGameNight?> =
                 Result.success(UpcomingGameNight(gameNight, host))
 
-            override fun updateGameNight(
+            override suspend fun updateGameNight(
                 gameNightId: Long,
                 startsAt: LocalDateTime,
                 hostPlayerId: Long,
             ): Result<UpcomingGameNight> = Result.failure(RuntimeException("Speichern fehlgeschlagen"))
         }
         val playerRepo = object : PlayerRepository {
-            override fun getPlayers(): Result<List<Player>> = Result.success(listOf(host))
-            override fun addPlayer(name: String, address: String): Result<Player> = error("")
-            override fun updatePlayer(id: Long, name: String, address: String): Result<Player> = error("")
-            override fun movePlayer(id: Long, direction: MoveDirection): Result<List<Player>> = error("")
-            override fun createNextGameNight(
+            override suspend fun getPlayers(): Result<List<Player>> = Result.success(listOf(host))
+            override suspend fun addPlayer(name: String, address: String): Result<Player> = error("")
+            override suspend fun updatePlayer(id: Long, name: String, address: String): Result<Player> = error("")
+            override suspend fun movePlayer(id: Long, direction: MoveDirection): Result<List<Player>> = error("")
+            override suspend fun createNextGameNight(
                 startsAt: LocalDateTime?,
                 preferredHostUid: String?,
                 memberOrderOverride: List<String>?,
@@ -266,9 +266,44 @@ class DashboardViewModelTest {
         org.junit.Assert.assertNull((viewModel.uiState as DashboardUiState.Content).gameNightEditor)
     }
 
+    @Test
+    fun `loadGameNight handles network offline failure and recovers on retry`() = runTest(dispatcher) {
+        var shouldFail = true
+        val host = Player(1, "Max Mustermann", "Musterstraße 12", 1)
+        val gameNight = GameNight(
+            id = 42,
+            startsAt = LocalDateTime.of(2026, 9, 15, 18, 30),
+            hostId = host.id,
+            location = "Musterstraße 12",
+            status = GameNightStatus.PLANNED,
+        )
+
+        val repo = object : GameNightRepository {
+            override suspend fun getUpcomingGameNight(): Result<UpcomingGameNight?> =
+                if (shouldFail) Result.failure(java.io.IOException("Keine Internetverbindung"))
+                else Result.success(UpcomingGameNight(gameNight, host))
+        }
+
+        val viewModel = DashboardViewModel(
+            repository = repo,
+            ioDispatcher = dispatcher,
+        )
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState is DashboardUiState.Error)
+        assertEquals("Keine Internetverbindung", (viewModel.uiState as DashboardUiState.Error).message)
+
+        // Retry when network is back
+        shouldFail = false
+        viewModel.loadGameNight()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState is DashboardUiState.Content)
+    }
+
     private fun repositoryReturning(
         result: Result<UpcomingGameNight?>,
     ): GameNightRepository = object : GameNightRepository {
-        override fun getUpcomingGameNight(): Result<UpcomingGameNight?> = result
+        override suspend fun getUpcomingGameNight(): Result<UpcomingGameNight?> = result
     }
 }

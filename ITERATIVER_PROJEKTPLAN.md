@@ -143,22 +143,23 @@ Akzeptanzkriterien:
 - Änderungen können gespeichert oder verworfen werden.
 - Bei erfolgreicher Aktualisierung wird eine Push-Benachrichtigung ausgelöst und die UI synchronisiert.
 
-### Iteration M2-3 – Online-Robustheit
+### MS2 – Iteration 4: Online-Robustheit & Asynchrone Architektur
 
-Ziel: Online-Fehler werden in jedem Bereich verständlich, nicht blockierend und reproduzierbar behandelt.
+Ziel: Online-Fehler werden in jedem Bereich verständlich, nicht blockierend und reproduzierbar behandelt. Alle Firestore-Aufrufe sind asynchron und suspendierend ohne blockierende Aufrufe.
 
-- [ ] Netzwerkstatus zentral beobachten
-- [ ] Einheitlichen Online-Fehlerzustand bereitstellen
-- [ ] Alle blockierenden Firestore-Aufrufe auf suspendierende ViewModel-Coroutines umstellen
-- [ ] Lade-, Retry- und Timeout-Verhalten vereinheitlichen
-- [ ] Keine Schreiboperation bei fehlender Verbindung vortäuschen
-- [ ] Firebase Emulator Suite für Repository-Integrationstests einrichten
-- [ ] Firestore-Sicherheitsregeln versionieren und testen
+- [x] Zentralen Netzwerk-Monitor (`LiveNetworkMonitor` / `ConnectivityManager`) mit Live-Flow einführen
+- [x] Globales Offline-Banner in Compose anzeigen, wenn keine Internetverbindung vorhanden ist
+- [x] Alle synchronen `runBlocking`-Aufrufe aus dem Repository entfernen
+- [x] Sämtliche Repository-Schnittstellen (`BoardGamerRepository` u. a.) auf echte `suspend`-Funktionen umstellen
+- [x] Asynchrone Firestore-Aufrufe mit Coroutines und `.await()` umsetzen
+- [x] Nicht blockierende UI und konsistente Fehlerzustände mit Wiederholen-Aktionen sicherstellen
+- [x] Firestore-Sicherheitsregeln (`firestore.rules`) im Repository versionieren
+- [x] Unit- und Compose-Tests für asynchrone Repository-Aufrufe und Netzwerkzustände aktualisieren
 
 Akzeptanzkriterien:
 
-- Ohne Netzwerk zeigt jeder Datenbereich eine klare Meldung mit Wiederholen-Aktion.
-- Die Oberfläche bleibt während Firebase-Aufrufen bedienbar.
+- Ohne Netzwerk zeigt jeder Datenbereich eine klare Meldung mit Wiederholen-Aktion und ein Offline-Banner.
+- Die Oberfläche bleibt während Firebase-Aufrufen vollständig flüssig und bedienbar.
 - Schreibfehler verändern den sichtbaren Erfolgszustand nicht.
 - Sicherheitsregeln verhindern gruppenfremde Lese- und Schreibzugriffe.
 
@@ -167,15 +168,15 @@ Akzeptanzkriterien:
 - [ ] Firebase Cloud Messaging einrichten
 - [ ] FCM-Token pro Nutzer verwalten
 - [ ] Teilnahme, Verspätung und Absage als Gruppenstatus modellieren
-- [ ] Push- und In-App-Benachrichtigungen umsetzen
+- [ ] Push- und In-App-Benachrichtigungen serverseitig auslösen
 - [ ] Berechtigungen und Datenschutz prüfen
 
 ## 7. Teststrategie
 
 | Ebene | Zweck |
 |---|---|
-| Unit-Test | UI-Mapping und reine Validierungs-/Berechnungslogik |
-| Compose-Test | Formulare, Navigation, Zustandswiederherstellung und kritische Bedienabläufe |
+| Unit-Test | UI-Mapping, asynchrone Coroutines, Validierungs-/Berechnungslogik |
+| Compose-Test | Formulare, Navigation, Zustandswiederherstellung, Offline-Banner und Dialoge |
 | Firebase-Integrationstest | Firestore-Struktur, Rechte, Gruppenisolation und Schreibregeln |
 | Manueller Mehrgerätetest | Gleichzeitige Nutzung derselben Gruppe auf mindestens zwei Geräten |
 
@@ -192,12 +193,10 @@ Zusätzlich sind Bildschirmdrehung, fehlende Netzwerkverbindung und ein zweites 
 
 ## 8. Risiken und offene Punkte
 
-- Das derzeit synchrone Repository kann die Oberfläche während langsamer Netzaufrufe blockieren.
-- Firestore-Sicherheitsregeln sind noch nicht im Repository versioniert und automatisiert geprüft.
 - Firebase-Tests dürfen keine produktiven Gruppen- oder Benutzerdaten verändern.
 - Stabile numerische IDs werden teilweise aus Firebase-Dokument-IDs abgeleitet; langfristig sollten Domain-IDs als Strings modelliert werden.
-- Push-Benachrichtigungen benötigen neben der App auch eine vertrauenswürdige serverseitige Auslösung.
+- Push-Benachrichtigungen benötigen neben der App auch eine vertrauenswürdige serverseitige Auslösung (Cloud Functions / FCM Backend).
 
 ## 9. Nächster Schritt
 
-Nach erfolgreicher technischer Prüfung der aktuellen MS3-Umsetzung folgt **Iteration M2-3 – Online-Robustheit**. Priorität haben nicht blockierende Firebase-Aufrufe, ein zentraler Verbindungszustand sowie versionierte und getestete Firestore-Sicherheitsregeln.
+Nach erfolgreicher Umsetzung von **MS2 – Iteration 4: Online-Robustheit & Asynchrone Architektur** folgt **Iteration M2-4 – Echte Benachrichtigungen** mit Firebase Cloud Messaging (FCM).
