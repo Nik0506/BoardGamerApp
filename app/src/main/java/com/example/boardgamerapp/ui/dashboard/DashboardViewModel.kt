@@ -6,11 +6,14 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.boardgamerapp.data.repository.GameNightRepository
+import com.example.boardgamerapp.data.repository.AttendanceRepository
 import com.example.boardgamerapp.data.repository.BoardGamerRepository
+import com.example.boardgamerapp.data.repository.GameNightRepository
 import com.example.boardgamerapp.data.repository.LateNoticeRepository
 import com.example.boardgamerapp.data.repository.PlayerRepository
 import com.example.boardgamerapp.data.repository.UpcomingGameNight
+import com.example.boardgamerapp.domain.model.AttendanceStatusType
+import com.example.boardgamerapp.domain.model.GameNightAttendance
 import com.example.boardgamerapp.domain.model.LateNotice
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -23,6 +26,7 @@ class DashboardViewModel(
     private val repository: GameNightRepository,
     private val playerRepository: PlayerRepository? = null,
     private val lateNoticeRepository: LateNoticeRepository? = null,
+    private val attendanceRepository: AttendanceRepository? = null,
     private val currentPlayerId: Long? = null,
     private val onSendNotification: ((title: String, message: String) -> Unit)? = null,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
@@ -59,23 +63,135 @@ class DashboardViewModel(
 
         val playersResult = withContext(ioDispatcher) { resolvePlayersForDashboard() }
         val noticesResult = withContext(ioDispatcher) { lateNoticeRepository?.getLateNotices() ?: Result.success(emptyList()) }
-        val error = playersResult.exceptionOrNull() ?: noticesResult.exceptionOrNull()
+        val attendancesResult = withContext(ioDispatcher) { attendanceRepository?.getAttendances() ?: Result.success(emptyList()) }
+        val error = playersResult.exceptionOrNull() ?: noticesResult.exceptionOrNull() ?: attendancesResult.exceptionOrNull()
         if (error != null) {
             uiState = DashboardUiState.Error(
-                message = error.message ?: "Die Verspätungsmeldungen konnten nicht geladen werden.",
+                message = error.message ?: "Die Daten für den Spieleabend konnten nicht geladen werden.",
             )
             return
         }
 
         val players = playersResult.getOrThrow()
             .map { DashboardPlayerUiModel(id = it.id, name = it.name) }
+        val attendancesMap = attendancesResult.getOrThrow().associateBy { it.playerId }
+        val attendanceUiModels = players.map { player ->
+            val att = attendancesMap[player.id]
+            DashboardAttendanceUiModel(
+                playerId = player.id,
+                playerName = player.name,
+                status = att?.status ?: AttendanceStatusType.PENDING,
+                minutesLate = att?.minutesLate,
+                reason = att?.reason,
+                updatedAt = att?.updatedAt?.format(noticeDateFormatter),
+                isCurrentPlayer = (player.id == currentPlayerId),
+            )
+        }
+
         uiState = DashboardUiState.Content(
             gameNight = upcoming.toUiModel(),
             players = players,
             selectedPlayerId = currentPlayerId?.takeIf { id -> players.any { it.id == id } },
+            attendances = attendanceUiModels,
             lateNotices = noticesResult.getOrThrow().map { it.toUiModel(players) },
             message = successMessage,
         )
+    }
+
+    fun confirmAttending() {
+        val content = uiState as? DashboardUiState.Content ?: return
+        val playerId = content.selectedPlayerId
+        if (playerId == null || attendanceRepository == null) {
+            uiState = content.copy(errorMessage = "Dein Konto ist kein Mitglied der aktiven Gruppe.")
+            return
+        }
+        val playerName = content.players.firstOrNull { it.id == playerId }?.name ?: "Ein Mitglied"
+
+        viewModelScope.launch {
+            withContext(ioDispatcher) {
+                attendanceRepository.setAttendance(playerId, AttendanceStatusType.ATTENDING)
+            }.fold(
+                onSuccess = {
+                    onSendNotification?.invoke(
+                        "Status-Update",
+                        "$playerName ist beim nächsten Spieleabend dabei.",
+                    )
+                    fetchGameNightContent(successMessage = "Deine Zusage wurde gespeichert.")
+                },
+                onFailure = { error ->
+                    uiState = content.copy(
+                        errorMessage = error.message ?: "Die Zusage konnte nicht gespeichert werden.",
+                    )
+                },
+            )
+        }
+    }
+
+    fun beginDeclineAttendance() {
+        val content = uiState as? DashboardUiState.Content ?: return
+        if (content.selectedPlayerId == null) {
+            uiState = content.copy(errorMessage = "Dein Konto ist kein Mitglied der aktiven Gruppe.")
+            return
+        }
+        uiState = content.copy(
+            declineEditor = AttendanceDeclineEditorUiState(),
+            message = null,
+            errorMessage = null,
+        )
+    }
+
+    fun updateDeclineReason(reason: String) {
+        val content = uiState as? DashboardUiState.Content ?: return
+        uiState = content.copy(
+            declineEditor = (content.declineEditor ?: AttendanceDeclineEditorUiState()).copy(
+                reason = reason,
+                errorMessage = null,
+            ),
+        )
+    }
+
+    fun confirmDeclineAttendance() {
+        val content = uiState as? DashboardUiState.Content ?: return
+        val editor = content.declineEditor ?: return
+        val playerId = content.selectedPlayerId
+        if (playerId == null || attendanceRepository == null) {
+            uiState = content.copy(errorMessage = "Dein Konto ist kein Mitglied der aktiven Gruppe.")
+            return
+        }
+        val playerName = content.players.firstOrNull { it.id == playerId }?.name ?: "Ein Mitglied"
+        uiState = content.copy(declineEditor = editor.copy(isSaving = true, errorMessage = null))
+
+        viewModelScope.launch {
+            withContext(ioDispatcher) {
+                attendanceRepository.setAttendance(
+                    playerId = playerId,
+                    status = AttendanceStatusType.DECLINED,
+                    reason = editor.reason.ifBlank { null },
+                )
+            }.fold(
+                onSuccess = {
+                    val reasonSuffix = if (editor.reason.isNotBlank()) " Grund: ${editor.reason}" else ""
+                    onSendNotification?.invoke(
+                        "Absage zum Spieleabend",
+                        "$playerName hat für den Spieleabend abgesagt.$reasonSuffix",
+                    )
+                    fetchGameNightContent(successMessage = "Deine Absage wurde gespeichert.")
+                },
+                onFailure = { error ->
+                    uiState = content.copy(
+                        declineEditor = editor.copy(
+                            isSaving = false,
+                            errorMessage = error.message ?: "Die Absage konnte nicht gespeichert werden.",
+                        ),
+                    )
+                },
+            )
+        }
+    }
+
+    fun dismissDeclineAttendance() {
+        val content = uiState as? DashboardUiState.Content ?: return
+        uiState = content.copy(declineEditor = null)
     }
 
     fun beginEditGameNight() {
@@ -212,24 +328,37 @@ class DashboardViewModel(
             return
         }
         val playerId = content.selectedPlayerId
-        if (playerId == null || lateNoticeRepository == null) {
+        if (playerId == null || (lateNoticeRepository == null && attendanceRepository == null)) {
             uiState = content.copy(errorMessage = "Dein Konto ist kein Mitglied der aktiven Gruppe.")
             return
         }
+        val playerName = content.players.firstOrNull { it.id == playerId }?.name ?: "Ein Mitglied"
+
         viewModelScope.launch {
-        withContext(ioDispatcher) { lateNoticeRepository.addLateNotice(playerId, minutes) }.fold(
-            onSuccess = {
-                fetchGameNightContent(successMessage = "Verspätungsmeldung wurde gespeichert.")
-            },
-            onFailure = { error ->
-                uiState = content.copy(
-                    editor = editor.copy(
-                        errorMessage = error.message
-                            ?: "Die Verspätungsmeldung konnte nicht gespeichert werden.",
-                    ),
-                )
-            },
-        )
+            withContext(ioDispatcher) {
+                if (lateNoticeRepository != null) {
+                    lateNoticeRepository.addLateNotice(playerId, minutes)
+                } else {
+                    attendanceRepository?.setAttendance(playerId, AttendanceStatusType.LATE, minutesLate = minutes)
+                        ?: Result.failure(IllegalStateException("Repository nicht verfügbar"))
+                }
+            }.fold(
+                onSuccess = {
+                    onSendNotification?.invoke(
+                        "Verspätung gemeldet",
+                        "$playerName verspätet sich um $minutes Minuten.",
+                    )
+                    fetchGameNightContent(successMessage = "Verspätungsmeldung wurde gespeichert.")
+                },
+                onFailure = { error ->
+                    uiState = content.copy(
+                        editor = editor.copy(
+                            errorMessage = error.message
+                                ?: "Die Verspätungsmeldung konnte nicht gespeichert werden.",
+                        ),
+                    )
+                },
+            )
         }
     }
 
@@ -295,6 +424,7 @@ class DashboardViewModel(
                         repository = repository,
                         playerRepository = repository,
                         lateNoticeRepository = repository,
+                        attendanceRepository = repository,
                         currentPlayerId = currentPlayerId,
                         onSendNotification = onSendNotification,
                     ) as T

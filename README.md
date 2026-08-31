@@ -9,10 +9,11 @@ Würfelrunde organisiert gemeinsame Brettspielabende über mehrere Geräte. Anme
 - Aktive Gruppe auswählen und Mitgliederreihenfolge verwalten
 - Nächsten Spieleabend mit Dialog, Datum, Gastgeber-Auswahl und Reihenfolge-Logik planen
 - Bestehenden Spieleabend über Optionsmenü editieren (Datum, Uhrzeit, Gastgeber per Dropdown) inklusive Push-Benachrichtigung
+- Echter Teilnahmestatus (RSVP): Zusagen, Verspäten und Absagen (mit optionalem Grund)
+- Gruppen-Statusübersicht im Dashboard mit Zähler-Zusammenfassung und Mitglieder-Badges
 - Live-Netzwerküberwachung mit automatischem Offline-Banner bei Verbindungsverlust
 - Vollständig asynchrone, nicht blockierende Coroutine-Architektur für alle Firestore-Aufrufe
 - Spiele vorschlagen und pro Mitglied abstimmen
-- Verspätungsmeldungen für die Gruppe speichern
 - Essenskategorien verwalten und darüber abstimmen
 - Restaurant, Menü-Link und persönliche Bestellungen erfassen
 - Preise als ganze Centbeträge speichern und exakt summieren
@@ -25,7 +26,7 @@ Würfelrunde organisiert gemeinsame Brettspielabende über mehrere Geräte. Anme
 
 Firestore ist die einzige fachliche Datenquelle und Source of Truth. Die frühere Room-Datenbank und das In-Memory-Repository wurden entfernt. Die App besitzt keinen fachlichen Offline-Modus und deklariert Internet- sowie Netzwerkstatuszugriff ausdrücklich. Firestore verwendet keinen persistenten Datenträger-Cache; ohne Verbindung werden Fehler angezeigt und Änderungen nicht lokal vorgemerkt.
 
-Aktueller Funktionsfortschritt: Mit **MS2 – Iteration 4: Online-Robustheit & Asynchrone Architektur** wurde das Repository vollständig auf nicht-blockierende Suspend-Funktionen und Kotlin Coroutines umgestellt (`runBlocking` vollständig entfernt). Zudem überwacht ein `LiveNetworkMonitor` den Netzwerkstatus und blendet bei Verbindungsunterbrechung ein Offline-Banner ein. Die Firestore-Sicherheitsregeln sind in `firestore.rules` versioniert.
+Aktueller Funktionsfortschritt: Mit **MS2 – Iteration 5: Benachrichtigungen und echte Spielstatusmeldungen** wurde ein vollständiges Teilnahme- und RSVP-System für den Spieleabend realisiert. Gruppenmitglieder können mit einem Klick zusagen, eine Verspätung mit Minuten angeben oder mit Grund absagen. Die Statusmeldungen werden in Echtzeit für die Gruppe visualisiert und lösen Benachrichtigungen aus.
 
 Die aktive Gruppe wird im Firestore-Benutzerprofil gespeichert. Dadurch greifen Dashboard, Termine, Abstimmungen und Bestellungen auf dieselbe ausgewählte Gruppe zu.
 
@@ -61,8 +62,8 @@ Jetpack Compose → ViewModel → Repository (suspend / async) → Firebase Auth
 
 - MS2: gemeinsame Firebase-Gruppe, Auth, Mitglieder, gemeinsame Datenhaltung und Spiel-/Essens-/Bewertungsfunktionen umgesetzt
 - MS2 – Iteration 4: Online-Robustheit, asynchrone Coroutines, Live-Netzwerkmonitor und versionierte `firestore.rules` umgesetzt
+- MS2 – Iteration 5: Teilnahmestatus (RSVP), Absagen mit Grund, Gruppen-Statusübersicht und Benachrichtigungen umgesetzt
 - MS3: Spieleabend planen und editieren mit Dialogen, DatePicker, TimePicker, Host-Auswahl, Reihenfolge-Logik und Push-Benachrichtigungen umgesetzt
-- M2-4: Echte Push-Benachrichtigungen (FCM) als nächster Meilenstein
 
 ## Bauen und testen
 

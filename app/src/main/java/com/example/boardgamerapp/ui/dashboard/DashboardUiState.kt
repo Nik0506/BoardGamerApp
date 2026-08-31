@@ -1,5 +1,6 @@
 package com.example.boardgamerapp.ui.dashboard
 
+import com.example.boardgamerapp.domain.model.AttendanceStatusType
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -19,6 +20,16 @@ data class DashboardPlayerUiModel(
     val name: String,
 )
 
+data class DashboardAttendanceUiModel(
+    val playerId: Long,
+    val playerName: String,
+    val status: AttendanceStatusType,
+    val minutesLate: Int? = null,
+    val reason: String? = null,
+    val updatedAt: String? = null,
+    val isCurrentPlayer: Boolean = false,
+)
+
 data class LateNoticeUiModel(
     val id: Long,
     val playerName: String,
@@ -29,6 +40,12 @@ data class LateNoticeUiModel(
 data class LateNoticeEditorUiState(
     val selectedPreset: Int? = 10,
     val customMinutes: String = "",
+    val errorMessage: String? = null,
+)
+
+data class AttendanceDeclineEditorUiState(
+    val reason: String = "",
+    val isSaving: Boolean = false,
     val errorMessage: String? = null,
 )
 
@@ -48,12 +65,25 @@ sealed interface DashboardUiState {
         val gameNight: GameNightUiModel,
         val players: List<DashboardPlayerUiModel> = emptyList(),
         val selectedPlayerId: Long? = null,
+        val attendances: List<DashboardAttendanceUiModel> = emptyList(),
         val lateNotices: List<LateNoticeUiModel> = emptyList(),
         val editor: LateNoticeEditorUiState? = null,
+        val declineEditor: AttendanceDeclineEditorUiState? = null,
         val gameNightEditor: GameNightEditorUiState? = null,
         val message: String? = null,
         val errorMessage: String? = null,
-    ) : DashboardUiState
+    ) : DashboardUiState {
+        val currentAttendance: DashboardAttendanceUiModel?
+            get() = attendances.firstOrNull { it.isCurrentPlayer }
+        val attendingCount: Int
+            get() = attendances.count { it.status == AttendanceStatusType.ATTENDING }
+        val lateCount: Int
+            get() = attendances.count { it.status == AttendanceStatusType.LATE }
+        val declinedCount: Int
+            get() = attendances.count { it.status == AttendanceStatusType.DECLINED }
+        val pendingCount: Int
+            get() = attendances.count { it.status == AttendanceStatusType.PENDING }
+    }
     data class Error(val message: String) : DashboardUiState
 }
 

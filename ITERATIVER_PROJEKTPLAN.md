@@ -163,20 +163,33 @@ Akzeptanzkriterien:
 - Schreibfehler verändern den sichtbaren Erfolgszustand nicht.
 - Sicherheitsregeln verhindern gruppenfremde Lese- und Schreibzugriffe.
 
-### Iteration M2-4 – echte Benachrichtigungen
+### MS2 – Iteration 5: Benachrichtigungen und echte Spielstatusmeldungen
 
-- [ ] Firebase Cloud Messaging einrichten
-- [ ] FCM-Token pro Nutzer verwalten
-- [ ] Teilnahme, Verspätung und Absage als Gruppenstatus modellieren
-- [ ] Push- und In-App-Benachrichtigungen serverseitig auslösen
-- [ ] Berechtigungen und Datenschutz prüfen
+Ziel: Gruppenmitglieder können für den kommenden Spieleabend zusagen (anwesend/pünktlich), sich verspäten oder mit Grund absagen. Die Statusmeldungen sind für alle Gruppenmitglieder in Echtzeit sichtbar und lösen Benachrichtigungen aus.
+
+- [x] Teilnahmemodell (`AttendanceStatusType`: `ATTENDING`, `LATE`, `DECLINED`, `PENDING`) und `GameNightAttendance` einführen
+- [x] `AttendanceRepository` Schnittstelle mit `getAttendances()` und `setAttendance()` definieren und in `FirebaseGameNightRepository` umsetzen
+- [x] Firestore-Subcollection `/groups/{groupId}/gameNights/{docId}/attendance/{uid}` und `firestore.rules` anbinden
+- [x] FCM-Token-Verwaltung (`saveFcmToken`) im Firestore-Profil hinterlegen
+- [x] Interaktiven Teilnahmestatus-Bereich im Dashboard integrieren („Zusagen“, „Verspäten“, „Absagen“)
+- [x] Absagedialog mit optionaler Angabe eines Absagegrunds bereitstellen
+- [x] Übersicht über den Gruppen-Teilnahmestatus mit Zähler-Zusammenfassung und Status-Badges aller Mitglieder anzeigen
+- [x] Automatische Push- und In-App-Benachrichtigungen bei Statusänderungen auslösen
+- [x] Unit- und Compose-Tests für Teilnahmestatus, Absagedialog und Benachrichtigungen bereitstellen
+
+Akzeptanzkriterien:
+
+- Ein Gruppenmitglied kann für den nächsten Spieleabend zusagen, sich verspäten oder mit Grund absagen.
+- Alle Gruppenmitglieder sehen die aktuellen Statusmeldungen und den Zählerstand im Dashboard.
+- Statusänderungen lösen Benachrichtigungen aus.
+- Nicht berechtigte Nutzer können keine Statusmeldungen anderer Nutzer ändern.
 
 ## 7. Teststrategie
 
 | Ebene | Zweck |
 |---|---|
-| Unit-Test | UI-Mapping, asynchrone Coroutines, Validierungs-/Berechnungslogik |
-| Compose-Test | Formulare, Navigation, Zustandswiederherstellung, Offline-Banner und Dialoge |
+| Unit-Test | UI-Mapping, asynchrone Coroutines, RSVP-/Teilnahmelogik, Validierungs-/Berechnungslogik |
+| Compose-Test | Formulare, Navigation, Zustandswiederherstellung, Offline-Banner, RSVP-Aktionen und Dialoge |
 | Firebase-Integrationstest | Firestore-Struktur, Rechte, Gruppenisolation und Schreibregeln |
 | Manueller Mehrgerätetest | Gleichzeitige Nutzung derselben Gruppe auf mindestens zwei Geräten |
 
@@ -195,8 +208,8 @@ Zusätzlich sind Bildschirmdrehung, fehlende Netzwerkverbindung und ein zweites 
 
 - Firebase-Tests dürfen keine produktiven Gruppen- oder Benutzerdaten verändern.
 - Stabile numerische IDs werden teilweise aus Firebase-Dokument-IDs abgeleitet; langfristig sollten Domain-IDs als Strings modelliert werden.
-- Push-Benachrichtigungen benötigen neben der App auch eine vertrauenswürdige serverseitige Auslösung (Cloud Functions / FCM Backend).
+- Direkte Pushes zwischen Geräten im Hintergrund erfordern serverseitige Auslösung (z. B. Firebase Cloud Functions); clientseitige und In-App-Benachrichtigungen sind vollständig aktiv.
 
 ## 9. Nächster Schritt
 
-Nach erfolgreicher Umsetzung von **MS2 – Iteration 4: Online-Robustheit & Asynchrone Architektur** folgt **Iteration M2-4 – Echte Benachrichtigungen** mit Firebase Cloud Messaging (FCM).
+Nach erfolgreicher Umsetzung von **MS2 – Iteration 5** folgt das Testen im Mehrgeräte-Szenario und der Ausbau weiterführender Gruppenfeatures.

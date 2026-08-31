@@ -110,4 +110,82 @@ class DashboardScreenTest {
             "Spieleabend wurde erfolgreich aktualisiert. Teilnehmer wurden per Push-Nachricht informiert.",
         ).assertIsDisplayed()
     }
+
+    @Test
+    fun attendanceRsvpActionsAreAccessible() {
+        composeRule.setContent {
+            var state by remember {
+                mutableStateOf(
+                    DashboardUiState.Content(
+                        gameNight = GameNightUiModel(
+                            id = 1L,
+                            date = "Freitag, 28. August 2026",
+                            time = "19:00 Uhr",
+                            hostName = "Max Mustermann",
+                            hostId = 1L,
+                            location = "Musterstraße 12",
+                        ),
+                        players = listOf(
+                            DashboardPlayerUiModel(1L, "Max Mustermann"),
+                            DashboardPlayerUiModel(2L, "Erika Musterfrau"),
+                        ),
+                        selectedPlayerId = 1L,
+                        attendances = listOf(
+                            com.example.boardgamerapp.ui.dashboard.DashboardAttendanceUiModel(
+                                playerId = 1L,
+                                playerName = "Max Mustermann",
+                                status = com.example.boardgamerapp.domain.model.AttendanceStatusType.ATTENDING,
+                                isCurrentPlayer = true,
+                            ),
+                            com.example.boardgamerapp.ui.dashboard.DashboardAttendanceUiModel(
+                                playerId = 2L,
+                                playerName = "Erika Musterfrau",
+                                status = com.example.boardgamerapp.domain.model.AttendanceStatusType.PENDING,
+                            ),
+                        ),
+                    ),
+                )
+            }
+
+            DashboardScreen(
+                uiState = state,
+                onRetry = {},
+                onConfirmAttending = {
+                    state = state.copy(
+                        message = "Deine Zusage wurde gespeichert.",
+                    )
+                },
+                onBeginDeclineAttendance = {
+                    state = state.copy(
+                        declineEditor = com.example.boardgamerapp.ui.dashboard.AttendanceDeclineEditorUiState(),
+                    )
+                },
+                onConfirmDeclineAttendance = {
+                    state = state.copy(
+                        declineEditor = null,
+                        message = "Deine Absage wurde gespeichert.",
+                    )
+                },
+                onDismissDeclineAttendance = {
+                    state = state.copy(declineEditor = null)
+                },
+            )
+        }
+
+        // Verify status section and buttons
+        composeRule.onNodeWithText("Mein Teilnahmestatus").assertIsDisplayed()
+        composeRule.onNodeWithText("Teilnahme der Gruppe").assertIsDisplayed()
+        composeRule.onNodeWithText("Zusagen").assertIsDisplayed()
+        composeRule.onNodeWithText("Absagen").assertIsDisplayed()
+
+        // Click Zusagen
+        composeRule.onNodeWithText("Zusagen").performClick()
+        composeRule.onNodeWithText("Deine Zusage wurde gespeichert.").assertIsDisplayed()
+
+        // Click Absagen to open dialog
+        composeRule.onNodeWithText("Absagen").performClick()
+        composeRule.onNodeWithText("Absage zum Spieleabend").assertIsDisplayed()
+        composeRule.onNodeWithText("Absage bestätigen").assertIsDisplayed()
+        composeRule.onNodeWithText("Abbrechen").performClick()
+    }
 }
