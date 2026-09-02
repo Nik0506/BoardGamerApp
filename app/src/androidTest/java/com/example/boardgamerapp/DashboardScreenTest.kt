@@ -130,18 +130,18 @@ class DashboardScreenTest {
                             DashboardPlayerUiModel(1L, "Max Mustermann"),
                             DashboardPlayerUiModel(2L, "Erika Musterfrau"),
                         ),
-                        selectedPlayerId = 1L,
+                        selectedPlayerId = 2L,
                         attendances = listOf(
                             com.example.boardgamerapp.ui.dashboard.DashboardAttendanceUiModel(
                                 playerId = 1L,
                                 playerName = "Max Mustermann",
                                 status = com.example.boardgamerapp.domain.model.AttendanceStatusType.ATTENDING,
-                                isCurrentPlayer = true,
                             ),
                             com.example.boardgamerapp.ui.dashboard.DashboardAttendanceUiModel(
                                 playerId = 2L,
                                 playerName = "Erika Musterfrau",
                                 status = com.example.boardgamerapp.domain.model.AttendanceStatusType.PENDING,
+                                isCurrentPlayer = true,
                             ),
                         ),
                     ),
@@ -193,6 +193,100 @@ class DashboardScreenTest {
         composeRule.onNodeWithText("Absage").performClick()
         composeRule.onNodeWithText("Möchtest du deine Teilnahme für diesen Spieleabend absagen?").assertIsDisplayed()
         composeRule.onNodeWithText("Absage bestätigen").assertIsDisplayed()
+        composeRule.onNodeWithText("Abbrechen").performClick()
+    }
+
+    @Test
+    fun hostDeclineShowsThreeOptionsAndAllowsSelection() {
+        composeRule.setContent {
+            var state by remember {
+                mutableStateOf(
+                    DashboardUiState.Content(
+                        gameNight = GameNightUiModel(
+                            id = 1L,
+                            date = "Freitag, 28. August 2026",
+                            time = "19:00 Uhr",
+                            hostName = "Max Mustermann",
+                            hostId = 1L,
+                            location = "Musterstraße 12",
+                        ),
+                        players = listOf(
+                            DashboardPlayerUiModel(1L, "Max Mustermann"),
+                            DashboardPlayerUiModel(2L, "Erika Musterfrau"),
+                        ),
+                        selectedPlayerId = 1L, // Current player is the host!
+                        attendances = listOf(
+                            com.example.boardgamerapp.ui.dashboard.DashboardAttendanceUiModel(
+                                playerId = 1L,
+                                playerName = "Max Mustermann",
+                                status = com.example.boardgamerapp.domain.model.AttendanceStatusType.ATTENDING,
+                                isCurrentPlayer = true,
+                            ),
+                            com.example.boardgamerapp.ui.dashboard.DashboardAttendanceUiModel(
+                                playerId = 2L,
+                                playerName = "Erika Musterfrau",
+                                status = com.example.boardgamerapp.domain.model.AttendanceStatusType.PENDING,
+                            ),
+                        ),
+                    ),
+                )
+            }
+
+            DashboardScreen(
+                uiState = state,
+                onRetry = {},
+                onBeginStatusReport = {
+                    state = state.copy(
+                        statusReportEditor = com.example.boardgamerapp.ui.dashboard.StatusReportEditorUiState(
+                            selectedNewHostId = 2L,
+                        ),
+                    )
+                },
+                onSelectStatusReportType = { type ->
+                    state = state.copy(
+                        statusReportEditor = state.statusReportEditor?.copy(type = type),
+                    )
+                },
+                onSelectHostDeclineOption = { option ->
+                    state = state.copy(
+                        statusReportEditor = state.statusReportEditor?.copy(hostDeclineOption = option),
+                    )
+                },
+                onSaveStatusReport = {
+                    state = state.copy(
+                        statusReportEditor = null,
+                        message = "Aktion ausgeführt.",
+                    )
+                },
+                onDismissStatusReport = {
+                    state = state.copy(statusReportEditor = null)
+                },
+            )
+        }
+
+        // Open "Status melden"
+        composeRule.onNodeWithText("Status melden").performClick()
+        // Switch to "Absage"
+        composeRule.onNodeWithText("Absage").performClick()
+
+        // Verify host decline banner and the 3 options are displayed
+        composeRule.onNodeWithText("Du bist als Gastgeber eingetragen.").assertIsDisplayed()
+        composeRule.onNodeWithText("Alternativer Gastgeber").assertIsDisplayed()
+        composeRule.onNodeWithText("Spieleabend wird verschoben").assertIsDisplayed()
+        composeRule.onNodeWithText("Spieleabend wird abgesagt").assertIsDisplayed()
+        composeRule.onNodeWithText("Gastgeber übertragen").assertIsDisplayed()
+
+        // Switch to "Spieleabend wird verschoben"
+        composeRule.onNodeWithText("Spieleabend wird verschoben").performClick()
+        composeRule.onNodeWithText("Neuen Termin festlegen:").assertIsDisplayed()
+        composeRule.onNodeWithText("Spieleabend verschieben").assertIsDisplayed()
+
+        // Switch to "Spieleabend wird abgesagt"
+        composeRule.onNodeWithText("Spieleabend wird abgesagt").performClick()
+        composeRule.onNodeWithText("Grund für die Absage (optional)").assertIsDisplayed()
+        composeRule.onNodeWithText("Spieleabend absagen").assertIsDisplayed()
+
+        // Dismiss
         composeRule.onNodeWithText("Abbrechen").performClick()
     }
 

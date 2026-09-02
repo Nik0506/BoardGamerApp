@@ -1,6 +1,7 @@
 package com.example.boardgamerapp.ui.dashboard
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,6 +34,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
@@ -80,6 +82,10 @@ fun DashboardScreen(
     onDeclineReasonChange: (String) -> Unit = {},
     onSelectLateNoticePreset: (Int) -> Unit = {},
     onLateNoticeCustomMinutesChange: (String) -> Unit = {},
+    onSelectHostDeclineOption: (HostDeclineOption) -> Unit = {},
+    onHostDeclineNewHostChange: (Long) -> Unit = {},
+    onHostDeclineRescheduleDateChange: (LocalDate) -> Unit = {},
+    onHostDeclineRescheduleTimeChange: (LocalTime) -> Unit = {},
     onSaveStatusReport: () -> Unit = {},
     onDismissStatusReport: () -> Unit = {},
     onSelectGameNight: (String, String) -> Unit = { _, _ -> },
@@ -147,6 +153,10 @@ fun DashboardScreen(
             onDeclineReasonChange = onDeclineReasonChange,
             onSelectLateNoticePreset = onSelectLateNoticePreset,
             onLateNoticeCustomMinutesChange = onLateNoticeCustomMinutesChange,
+            onSelectHostDeclineOption = onSelectHostDeclineOption,
+            onHostDeclineNewHostChange = onHostDeclineNewHostChange,
+            onHostDeclineRescheduleDateChange = onHostDeclineRescheduleDateChange,
+            onHostDeclineRescheduleTimeChange = onHostDeclineRescheduleTimeChange,
             onSaveStatusReport = onSaveStatusReport,
             onDismissStatusReport = onDismissStatusReport,
             onSelectGameNight = onSelectGameNight,
@@ -171,6 +181,10 @@ private fun DashboardContent(
     onDeclineReasonChange: (String) -> Unit,
     onSelectLateNoticePreset: (Int) -> Unit,
     onLateNoticeCustomMinutesChange: (String) -> Unit,
+    onSelectHostDeclineOption: (HostDeclineOption) -> Unit,
+    onHostDeclineNewHostChange: (Long) -> Unit,
+    onHostDeclineRescheduleDateChange: (LocalDate) -> Unit,
+    onHostDeclineRescheduleTimeChange: (LocalTime) -> Unit,
     onSaveStatusReport: () -> Unit,
     onDismissStatusReport: () -> Unit,
     onSelectGameNight: (String, String) -> Unit,
@@ -236,6 +250,16 @@ private fun DashboardContent(
                                 onEditGameNight()
                             },
                         )
+                        if (uiState.isHost) {
+                            DropdownMenuItem(
+                                text = { Text("Als Gastgeber absagen") },
+                                onClick = {
+                                    menuExpanded = false
+                                    onBeginStatusReport()
+                                    onSelectStatusReportType(StatusReportType.DECLINED)
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -521,29 +545,114 @@ private fun DashboardContent(
     uiState.statusReportEditor?.let { editor ->
         StatusReportDialog(
             editor = editor,
+            isHost = uiState.isHost,
+            players = uiState.players,
+            hostId = uiState.gameNight.hostId,
             onSelectType = onSelectStatusReportType,
             onSelectPreset = onSelectLateNoticePreset,
             onCustomMinutesChange = onLateNoticeCustomMinutesChange,
             onReasonChange = onDeclineReasonChange,
+            onSelectHostDeclineOption = onSelectHostDeclineOption,
+            onHostDeclineNewHostChange = onHostDeclineNewHostChange,
+            onHostDeclineRescheduleDateChange = onHostDeclineRescheduleDateChange,
+            onHostDeclineRescheduleTimeChange = onHostDeclineRescheduleTimeChange,
             onSave = onSaveStatusReport,
             onDismiss = onDismissStatusReport,
         )
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun StatusReportDialog(
     editor: StatusReportEditorUiState,
+    isHost: Boolean = false,
+    players: List<DashboardPlayerUiModel> = emptyList(),
+    hostId: Long = 0L,
     onSelectType: (StatusReportType) -> Unit,
     onSelectPreset: (Int) -> Unit,
     onCustomMinutesChange: (String) -> Unit,
     onReasonChange: (String) -> Unit,
+    onSelectHostDeclineOption: (HostDeclineOption) -> Unit = {},
+    onHostDeclineNewHostChange: (Long) -> Unit = {},
+    onHostDeclineRescheduleDateChange: (LocalDate) -> Unit = {},
+    onHostDeclineRescheduleTimeChange: (LocalTime) -> Unit = {},
     onSave: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    var showDatePicker by remember { mutableStateOf(false) }
+    var showTimePicker by remember { mutableStateOf(false) }
+
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = editor.rescheduleDate
+                .atStartOfDay(ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli(),
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val picked = datePickerState.selectedDateMillis?.let {
+                            Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
+                        } ?: editor.rescheduleDate
+                        onHostDeclineRescheduleDateChange(picked)
+                        showDatePicker = false
+                    },
+                ) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("Abbrechen")
+                }
+            },
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
+    if (showTimePicker) {
+        val timePickerState = rememberTimePickerState(
+            initialHour = editor.rescheduleTime.hour,
+            initialMinute = editor.rescheduleTime.minute,
+            is24Hour = true,
+        )
+        AlertDialog(
+            onDismissRequest = { showTimePicker = false },
+            title = { Text("Uhrzeit auswählen") },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    TimePicker(state = timePickerState)
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onHostDeclineRescheduleTimeChange(LocalTime.of(timePickerState.hour, timePickerState.minute))
+                        showTimePicker = false
+                    },
+                ) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTimePicker = false }) {
+                    Text("Abbrechen")
+                }
+            },
+        )
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Status melden") },
+        title = { Text(if (isHost && editor.type == StatusReportType.DECLINED) "Absage durch Gastgeber" else "Status melden") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Wähle die Art der Meldung.")
@@ -581,15 +690,158 @@ private fun StatusReportDialog(
                         )
                     }
                     StatusReportType.DECLINED -> {
-                        Text("Möchtest du deine Teilnahme für diesen Spieleabend absagen?")
-                        OutlinedTextField(
-                            value = editor.reason,
-                            onValueChange = onReasonChange,
-                            label = { Text("Grund für die Absage (optional)") },
-                            placeholder = { Text("z. B. krank, Termin, unterwegs") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                        )
+                        if (isHost) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp)) {
+                                    Text(
+                                        text = "Du bist als Gastgeber eingetragen.",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onErrorContainer,
+                                    )
+                                    Text(
+                                        text = "Wähle eine Option für den Spieleabend:",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onErrorContainer,
+                                    )
+                                }
+                            }
+
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { onSelectHostDeclineOption(HostDeclineOption.REASSIGN_HOST) },
+                                ) {
+                                    RadioButton(
+                                        selected = editor.hostDeclineOption == HostDeclineOption.REASSIGN_HOST,
+                                        onClick = { onSelectHostDeclineOption(HostDeclineOption.REASSIGN_HOST) },
+                                    )
+                                    Text("Alternativer Gastgeber", style = MaterialTheme.typography.bodyMedium)
+                                }
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { onSelectHostDeclineOption(HostDeclineOption.RESCHEDULE) },
+                                ) {
+                                    RadioButton(
+                                        selected = editor.hostDeclineOption == HostDeclineOption.RESCHEDULE,
+                                        onClick = { onSelectHostDeclineOption(HostDeclineOption.RESCHEDULE) },
+                                    )
+                                    Text("Spieleabend wird verschoben", style = MaterialTheme.typography.bodyMedium)
+                                }
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { onSelectHostDeclineOption(HostDeclineOption.CANCEL) },
+                                ) {
+                                    RadioButton(
+                                        selected = editor.hostDeclineOption == HostDeclineOption.CANCEL,
+                                        onClick = { onSelectHostDeclineOption(HostDeclineOption.CANCEL) },
+                                    )
+                                    Text("Spieleabend wird abgesagt", style = MaterialTheme.typography.bodyMedium)
+                                }
+                            }
+
+                            when (editor.hostDeclineOption) {
+                                HostDeclineOption.REASSIGN_HOST -> {
+                                    val eligibleHosts = players.filter { it.id != hostId }
+                                    if (eligibleHosts.isEmpty()) {
+                                        Text(
+                                            text = "Keine weiteren Gruppenmitglieder vorhanden.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.error,
+                                        )
+                                    } else {
+                                        var hostDropdownExpanded by remember { mutableStateOf(false) }
+                                        val selectedHost = eligibleHosts.firstOrNull { it.id == editor.selectedNewHostId } ?: eligibleHosts.first()
+                                        ExposedDropdownMenuBox(
+                                            expanded = hostDropdownExpanded,
+                                            onExpandedChange = { hostDropdownExpanded = !hostDropdownExpanded },
+                                            modifier = Modifier.fillMaxWidth(),
+                                        ) {
+                                            OutlinedTextField(
+                                                value = selectedHost.name,
+                                                onValueChange = {},
+                                                readOnly = true,
+                                                label = { Text("Neuer Gastgeber") },
+                                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = hostDropdownExpanded) },
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+                                            )
+                                            ExposedDropdownMenu(
+                                                expanded = hostDropdownExpanded,
+                                                onDismissRequest = { hostDropdownExpanded = false },
+                                            ) {
+                                                eligibleHosts.forEach { player ->
+                                                    DropdownMenuItem(
+                                                        text = { Text(player.name) },
+                                                        onClick = {
+                                                            onHostDeclineNewHostChange(player.id)
+                                                            hostDropdownExpanded = false
+                                                        },
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        Text(
+                                            text = "Die Adresse wird auf den neuen Gastgeber aktualisiert. Dein Status wird auf abgesagt gesetzt.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                                HostDeclineOption.RESCHEDULE -> {
+                                    Text("Neuen Termin festlegen:", style = MaterialTheme.typography.bodyMedium)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Button(onClick = { showDatePicker = true }, modifier = Modifier.weight(1f)) {
+                                            Text(editor.rescheduleDate.format(DateTimeFormatter.ofPattern("dd.MM.yyyy", Locale.GERMAN)))
+                                        }
+                                        Button(onClick = { showTimePicker = true }, modifier = Modifier.weight(1f)) {
+                                            Text(editor.rescheduleTime.format(DateTimeFormatter.ofPattern("HH:mm 'Uhr'", Locale.GERMAN)))
+                                        }
+                                    }
+                                    Text(
+                                        text = "Bisherige Rückmeldungen werden zurückgesetzt, damit alle neu abstimmen können.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                HostDeclineOption.CANCEL -> {
+                                    OutlinedTextField(
+                                        value = editor.reason,
+                                        onValueChange = onReasonChange,
+                                        label = { Text("Grund für die Absage (optional)") },
+                                        placeholder = { Text("z. B. krank, Notfall, Termin") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true,
+                                    )
+                                    Text(
+                                        text = "Der Spieleabend wird für alle Teilnehmer storniert.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        } else {
+                            Text("Möchtest du deine Teilnahme für diesen Spieleabend absagen?")
+                            OutlinedTextField(
+                                value = editor.reason,
+                                onValueChange = onReasonChange,
+                                label = { Text("Grund für die Absage (optional)") },
+                                placeholder = { Text("z. B. krank, Termin, unterwegs") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                            )
+                        }
                     }
                 }
 
@@ -613,7 +865,15 @@ private fun StatusReportDialog(
                         strokeWidth = 2.dp,
                     )
                 } else {
-                    Text(if (editor.type == StatusReportType.DECLINED) "Absage bestätigen" else "Verspätung melden")
+                    val confirmText = when {
+                        editor.type == StatusReportType.LATE -> "Verspätung melden"
+                        !isHost -> "Absage bestätigen"
+                        editor.hostDeclineOption == HostDeclineOption.REASSIGN_HOST -> "Gastgeber übertragen"
+                        editor.hostDeclineOption == HostDeclineOption.RESCHEDULE -> "Spieleabend verschieben"
+                        editor.hostDeclineOption == HostDeclineOption.CANCEL -> "Spieleabend absagen"
+                        else -> "Bestätigen"
+                    }
+                    Text(confirmText)
                 }
             }
         },

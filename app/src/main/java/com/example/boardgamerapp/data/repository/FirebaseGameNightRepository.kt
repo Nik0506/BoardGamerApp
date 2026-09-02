@@ -53,7 +53,10 @@ class FirebaseGameNightRepository(
             .limit(20)
             .get()
             .await()
-        val notFinished = snapshot.documents.firstOrNull { it.getString("status") != GameNightStatus.FINISHED.name }
+        val notFinished = snapshot.documents.firstOrNull {
+            val status = it.getString("status")
+            status != GameNightStatus.FINISHED.name && status != GameNightStatus.CANCELLED.name
+        }
         return (notFinished ?: snapshot.documents.firstOrNull())?.id
     }
 
@@ -121,7 +124,10 @@ class FirebaseGameNightRepository(
                         .limit(20)
                         .get()
                         .await()
-                    val doc = gameNightsSnapshot.documents.firstOrNull { it.getString("status") != GameNightStatus.FINISHED.name }
+                    val doc = gameNightsSnapshot.documents.firstOrNull {
+                        val status = it.getString("status")
+                        status != GameNightStatus.FINISHED.name && status != GameNightStatus.CANCELLED.name
+                    }
                         ?: return@runCatching null
                     val gameNight = doc.toGameNight(groupId) ?: return@runCatching null
                     val fallbackHost = Player(id = 0L, name = "Gastgeber", address = "", hostOrder = 0)
@@ -292,6 +298,135 @@ class FirebaseGameNightRepository(
                 hostOrder = targetMember.hostOrder,
             )
             UpcomingGameNight(gameNight = updatedGameNight, host = hostPlayer)
+        }
+    }
+
+    override suspend fun cancelGameNight(
+        gameNightId: Long,
+        reason: String?,
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
+            val gameNightDoc = currentGameNightDocument(groupId, gameNightId)
+                ?: error("Der Spieleabend wurde nicht gefunden.")
+            val updateData = mutableMapOf<String, Any>(
+                "status" to GameNightStatus.CANCELLED.name,
+                "updatedAt" to Timestamp.now(),
+            )
+            if (!reason.isNullOrBlank()) {
+                updateData["cancelReason"] = reason.trim()
+            }
+            gameNightDoc.reference.update(updateData).await()
+            if (selectedGameNightDocId == gameNightDoc.id) {
+                selectedGameNightDocId = null
+            }
+        }
+    }
+
+    override suspend fun rescheduleGameNight(
+        gameNightId: Long,
+        startsAt: LocalDateTime,
+    ): Result<UpcomingGameNight> = withContext(Dispatchers.IO) {
+        runCatching {
+            val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
+            val gameNightDoc = currentGameNightDocument(groupId, gameNightId)
+                ?: error("Der Spieleabend wurde nicht gefunden.")
+
+            gameNightDoc.reference.update(
+                mapOf(
+                    "startsAt" to Timestamp(Date.from(startsAt.atZone(ZoneId.systemDefault()).toInstant())),
+                    "updatedAt" to Timestamp.now(),
+                ),
+            ).await()
+
+            // Reset attendance so all group members can RSVP again for the new date
+            val attendancesSnapshot = gameNightDoc.reference.collection("attendance").get().await()
+            for (attDoc in attendancesSnapshot.documents) {
+                attDoc.reference.delete().await()
+            }
+            val lateNoticesSnapshot = gameNightDoc.reference.collection("lateNotices").get().await()
+            for (lnDoc in lateNoticesSnapshot.documents) {
+                lnDoc.reference.delete().await()
+            }
+
+            val docAfter = gameNightDoc.reference.get().await()
+            val gameNight = docAfter.toGameNight(groupId) ?: error("Spieleabend nicht gefunden.")
+            val host = docAfter.getString("hostUid")?.let { resolveHostPlayer(groupId, it) }
+                ?: Player(0L, "Gastgeber", "", 0)
+            UpcomingGameNight(gameNight = gameNight.copy(location = host.address.ifBlank { gameNight.location }), host = host)
+        }
+    }
+
+    override suspend fun reassignHost(
+        gameNightId: Long,
+        newHostPlayerId: Long,
+    ): Result<UpcomingGameNight> = withContext(Dispatchers.IO) {
+        runCatching {
+            val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
+            val groupRef = firestore.collection("groups").document(groupId)
+            val gameNightDoc = currentGameNightDocument(groupId, gameNightId)
+                ?: error("Der Spieleabend wurde nicht gefunden.")
+
+            val oldHostUid = gameNightDoc.getString("hostUid")
+
+            val membersSnapshot = groupRef.collection("members").get().await()
+            val currentGroupMembers = membersSnapshot.documents.mapNotNull { doc ->
+                runCatching { GroupMember.fromMap(doc.data ?: emptyMap()) }.getOrNull()
+            }
+            val targetMember = currentGroupMembers.firstOrNull { it.uid.hashCode().toLong() == newHostPlayerId }
+                ?: error("Der ausgewählte Gastgeber wurde in der Gruppe nicht gefunden.")
+
+            val hostAddress = resolveHostAddress(groupId, targetMember.uid)
+            val location = hostAddress.ifBlank { "Keine Adresse hinterlegt" }
+
+            val updateData = mapOf(
+                "hostUid" to targetMember.uid,
+                "location" to location,
+                "updatedAt" to Timestamp.now(),
+            )
+            gameNightDoc.reference.update(updateData).await()
+
+            val savedOrder = ((groupRef.get().await().get("memberOrder") as? List<*>)
+                ?.mapNotNull { it as? String }
+                ?: currentGroupMembers.map { it.uid })
+            val rotatedOrder = rotateHostList(savedOrder, targetMember.uid)
+            if (rotatedOrder != savedOrder) {
+                groupRef.update("memberOrder", rotatedOrder, "updatedAt", Timestamp.now()).await()
+            }
+
+            val attendanceCol = gameNightDoc.reference.collection("attendance")
+            val stableNightId = gameNightDoc.getLong("id") ?: gameNightDoc.id.hashCode().toLong()
+
+            // Mark former host as DECLINED
+            if (!oldHostUid.isNullOrBlank()) {
+                val oldHostPlayerId = oldHostUid.hashCode().toLong()
+                attendanceCol.document(oldHostPlayerId.toString()).set(
+                    mapOf(
+                        "id" to oldHostPlayerId,
+                        "playerId" to oldHostPlayerId,
+                        "gameNightId" to stableNightId,
+                        "status" to AttendanceStatusType.DECLINED.name,
+                        "reason" to "Gastgeberrolle abgegeben",
+                        "updatedAt" to Timestamp.now(),
+                    ),
+                ).await()
+            }
+
+            // Mark new host as ATTENDING
+            attendanceCol.document(newHostPlayerId.toString()).set(
+                mapOf(
+                    "id" to newHostPlayerId,
+                    "playerId" to newHostPlayerId,
+                    "gameNightId" to stableNightId,
+                    "status" to AttendanceStatusType.ATTENDING.name,
+                    "updatedAt" to Timestamp.now(),
+                ),
+            ).await()
+
+            val docAfter = gameNightDoc.reference.get().await()
+            val gameNight = docAfter.toGameNight(groupId) ?: error("Spieleabend nicht gefunden.")
+            val host = resolveHostPlayer(groupId, targetMember.uid)
+            UpcomingGameNight(gameNight = gameNight.copy(location = host.address.ifBlank { gameNight.location }), host = host)
         }
     }
 

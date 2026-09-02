@@ -49,11 +49,21 @@ enum class StatusReportType {
     DECLINED,
 }
 
+enum class HostDeclineOption {
+    REASSIGN_HOST,
+    RESCHEDULE,
+    CANCEL,
+}
+
 data class StatusReportEditorUiState(
     val type: StatusReportType = StatusReportType.LATE,
     val selectedPreset: Int? = 10,
     val customMinutes: String = "",
     val reason: String = "",
+    val hostDeclineOption: HostDeclineOption = HostDeclineOption.REASSIGN_HOST,
+    val selectedNewHostId: Long = 0L,
+    val rescheduleDate: LocalDate = LocalDate.now().plusWeeks(1),
+    val rescheduleTime: LocalTime = LocalTime.of(19, 0),
     val isSaving: Boolean = false,
     val errorMessage: String? = null,
 )
@@ -81,6 +91,8 @@ sealed interface DashboardUiState {
         val message: String? = null,
         val errorMessage: String? = null,
     ) : DashboardUiState {
+        val isHost: Boolean
+            get() = selectedPlayerId != null && selectedPlayerId == gameNight.hostId
         val currentAttendance: DashboardAttendanceUiModel?
             get() = attendances.firstOrNull { it.isCurrentPlayer }
         val attendingCount: Int

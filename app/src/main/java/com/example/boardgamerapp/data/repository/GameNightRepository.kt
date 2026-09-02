@@ -112,6 +112,21 @@ interface GameNightRepository {
         startsAt: java.time.LocalDateTime,
         hostPlayerId: Long,
     ): Result<UpcomingGameNight> = Result.failure(UnsupportedOperationException("Nicht implementiert"))
+
+    suspend fun cancelGameNight(
+        gameNightId: Long,
+        reason: String? = null,
+    ): Result<Unit> = Result.failure(UnsupportedOperationException("Nicht implementiert"))
+
+    suspend fun rescheduleGameNight(
+        gameNightId: Long,
+        startsAt: java.time.LocalDateTime,
+    ): Result<UpcomingGameNight> = Result.failure(UnsupportedOperationException("Nicht implementiert"))
+
+    suspend fun reassignHost(
+        gameNightId: Long,
+        newHostPlayerId: Long,
+    ): Result<UpcomingGameNight> = Result.failure(UnsupportedOperationException("Nicht implementiert"))
 }
 
 interface AttendanceRepository {

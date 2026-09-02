@@ -184,6 +184,23 @@ Akzeptanzkriterien:
 - Statusänderungen lösen Benachrichtigungen aus.
 - Nicht berechtigte Nutzer können keine Statusmeldungen anderer Nutzer ändern.
 
+### MS3 – Absage Gastgeber
+
+Ziel: Sagt der aktuelle Gastgeber eines Spieleabends ab, stehen drei geordnete Handlungsoptionen zur Verfügung, um den Spieleabend für die Gruppe zu organisieren (Alternativer Gastgeber, Spieleabend verschieben, Spieleabend absagen).
+
+- [x] Erkennung, ob der angemeldete Nutzer der aktuelle Gastgeber des Spieleabends ist (`isHost`)
+- [x] Option 1 („Alternativer Gastgeber“): Neues Mitglied aus der Gruppe auswählen, Gastgeberschaft und Location auf neue Adresse übertragen, bisherigen Host als `DECLINED` markieren, Gruppe benachrichtigen
+- [x] Option 2 („Spieleabend verschieben“): Neues Datum/Uhrzeit festlegen, bisherige Zu-/Absagen der Teilnehmer zurücksetzen, Gruppe über den neuen Termin benachrichtigen
+- [x] Option 3 („Spieleabend absagen“): Spieleabend mit optionaler Begründung stornieren (`GameNightStatus.CANCELLED`), aus anstehenden Terminen entfernen, Gruppe benachrichtigen
+- [x] Einstieg über „Status melden“ -> „Absage“ sowie direkt über das Optionsmenü („Als Gastgeber absagen“)
+- [x] Unit- und Compose-Tests für alle drei Optionen implementieren
+
+Akzeptanzkriterien:
+
+- Der aktuelle Gastgeber erhält bei einer Absage die drei Handlungsoptionen.
+- Nicht-Gastgeber können weiterhin nur eine reguläre persönliche Absage erteilen.
+- Jede Option führt die zugehörigen Datenänderungen und Gruppen-Benachrichtigungen durch.
+
 ## 7. Teststrategie
 
 | Ebene | Zweck |
