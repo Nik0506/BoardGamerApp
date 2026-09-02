@@ -11,6 +11,7 @@ import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -18,6 +19,7 @@ import kotlinx.coroutines.withContext
 class FoodViewModel(
     private val repository: BoardGamerRepository,
     private val currentPlayerId: Long,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
     var uiState by mutableStateOf(FoodUiState())
         private set
@@ -27,7 +29,7 @@ class FoodViewModel(
     fun load() {
         uiState = uiState.copy(isLoading = true, errorMessage = null)
         viewModelScope.launch {
-        withContext(Dispatchers.IO) { repository.getFoodVotingSnapshot() }.fold(
+        withContext(ioDispatcher) { repository.getFoodVotingSnapshot() }.fold(
             onSuccess = { snapshot ->
                 if (snapshot == null) {
                     uiState = FoodUiState(isLoading = false)
@@ -65,7 +67,7 @@ class FoodViewModel(
 
     private fun loadOrders() {
         viewModelScope.launch {
-        withContext(Dispatchers.IO) { repository.getOrderingSnapshot() }.onSuccess { snapshot ->
+        withContext(ioDispatcher) { repository.getOrderingSnapshot() }.onSuccess { snapshot ->
             snapshot ?: return@onSuccess
             uiState = uiState.copy(
                 hostId = snapshot.host.id,
@@ -92,7 +94,7 @@ class FoodViewModel(
         val editor = uiState.restaurantEditor ?: return
         val playerId = uiState.selectedPlayerId ?: return
         viewModelScope.launch {
-        withContext(Dispatchers.IO) { repository.saveRestaurant(playerId, editor.name, editor.menuUrl) }.fold(
+        withContext(ioDispatcher) { repository.saveRestaurant(playerId, editor.name, editor.menuUrl) }.fold(
             onSuccess = { uiState = uiState.copy(restaurantEditor = null, message = "Restaurant gespeichert."); loadOrders() },
             onFailure = { uiState = uiState.copy(editorError = it.message) },
         )
@@ -113,7 +115,7 @@ class FoodViewModel(
         val cents = runCatching { editor.price.replace(',', '.').toBigDecimal().setScale(2, RoundingMode.UNNECESSARY).movePointRight(2).longValueExact() }
             .getOrElse { uiState = uiState.copy(editorError = "Bitte einen gültigen Preis mit höchstens zwei Nachkommastellen eingeben."); return }
         viewModelScope.launch {
-        withContext(Dispatchers.IO) { repository.saveFoodOrder(playerId, editor.dish, editor.note, cents) }.fold(
+        withContext(ioDispatcher) { repository.saveFoodOrder(playerId, editor.dish, editor.note, cents) }.fold(
             onSuccess = { uiState = uiState.copy(orderEditor = null, message = "Bestellung gespeichert."); loadOrders() },
             onFailure = { uiState = uiState.copy(editorError = it.message) },
         )
@@ -122,7 +124,7 @@ class FoodViewModel(
     fun deleteOrder(orderId: Long) {
         val playerId = uiState.selectedPlayerId ?: return
         viewModelScope.launch {
-        withContext(Dispatchers.IO) { repository.deleteFoodOrder(orderId, playerId) }.fold(
+        withContext(ioDispatcher) { repository.deleteFoodOrder(orderId, playerId) }.fold(
             onSuccess = { uiState = uiState.copy(message = "Bestellung gelöscht."); loadOrders() },
             onFailure = { uiState = uiState.copy(errorMessage = it.message) },
         )
@@ -132,7 +134,7 @@ class FoodViewModel(
     fun castVote(categoryId: Long) {
         val playerId = uiState.selectedPlayerId ?: return
         viewModelScope.launch {
-        withContext(Dispatchers.IO) { repository.castFoodVote(playerId, categoryId) }.fold(
+        withContext(ioDispatcher) { repository.castFoodVote(playerId, categoryId) }.fold(
             onSuccess = { load(); uiState = uiState.copy(message = "Essensstimme gespeichert.") },
             onFailure = { uiState = uiState.copy(errorMessage = it.message) },
         )
@@ -146,7 +148,7 @@ class FoodViewModel(
     fun saveCategory() {
         val name = uiState.categoryEditor ?: return
         viewModelScope.launch {
-        withContext(Dispatchers.IO) { repository.addFoodCategory(name) }.fold(
+        withContext(ioDispatcher) { repository.addFoodCategory(name) }.fold(
             onSuccess = { load(); uiState = uiState.copy(message = "${it.name} wurde hinzugefügt.") },
             onFailure = { uiState = uiState.copy(editorError = it.message) },
         )
@@ -155,7 +157,7 @@ class FoodViewModel(
 
     fun deleteCategory(categoryId: Long) {
         viewModelScope.launch {
-        withContext(Dispatchers.IO) { repository.deleteFoodCategory(categoryId) }.fold(
+        withContext(ioDispatcher) { repository.deleteFoodCategory(categoryId) }.fold(
             onSuccess = { load(); uiState = uiState.copy(message = "Kategorie wurde gelöscht.") },
             onFailure = { uiState = uiState.copy(errorMessage = it.message) },
         )

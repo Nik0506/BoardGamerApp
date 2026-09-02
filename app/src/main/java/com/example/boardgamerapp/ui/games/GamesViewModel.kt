@@ -12,6 +12,7 @@ import com.example.boardgamerapp.data.repository.VotingRepository
 import com.example.boardgamerapp.data.repository.VotingSnapshot
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -21,6 +22,7 @@ class GamesViewModel(
     private val playerRepository: PlayerRepository,
     private val votingRepository: VotingRepository,
     private val currentPlayerId: Long,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
     var uiState by mutableStateOf(GamesUiState())
@@ -33,8 +35,8 @@ class GamesViewModel(
     fun loadGames() {
         uiState = uiState.copy(isLoading = true, errorMessage = null)
         viewModelScope.launch {
-        val playersResult = withContext(Dispatchers.IO) { playerRepository.getPlayers() }
-        val votingResult = withContext(Dispatchers.IO) { votingRepository.getVotingSnapshot() }
+        val playersResult = withContext(ioDispatcher) { playerRepository.getPlayers() }
+        val votingResult = withContext(ioDispatcher) { votingRepository.getVotingSnapshot() }
 
         val error = playersResult.exceptionOrNull() ?: votingResult.exceptionOrNull()
         if (error != null) {
@@ -67,7 +69,7 @@ class GamesViewModel(
     fun castVote(boardGameId: Long) {
         val playerId = uiState.selectedPlayerId ?: return
         viewModelScope.launch {
-        withContext(Dispatchers.IO) { votingRepository.castVote(playerId, boardGameId) }.fold(
+        withContext(ioDispatcher) { votingRepository.castVote(playerId, boardGameId) }.fold(
             onSuccess = {
                 uiState = uiState.copy(message = "Deine Stimme wurde gespeichert.")
                 loadGames()
@@ -113,7 +115,7 @@ class GamesViewModel(
         val editor = uiState.editor ?: return
         val playerId = uiState.selectedPlayerId ?: return
         viewModelScope.launch {
-        withContext(Dispatchers.IO) { gameRepository.addGameSuggestion(
+        withContext(ioDispatcher) { gameRepository.addGameSuggestion(
             name = editor.name,
             description = editor.description,
             suggestedByPlayerId = playerId,
@@ -140,7 +142,7 @@ class GamesViewModel(
     fun deleteSuggestion(boardGameId: Long) {
         val playerId = uiState.selectedPlayerId ?: return
         viewModelScope.launch {
-        withContext(Dispatchers.IO) { gameRepository.deleteGameSuggestion(boardGameId, playerId) }.fold(
+        withContext(ioDispatcher) { gameRepository.deleteGameSuggestion(boardGameId, playerId) }.fold(
             onSuccess = {
                 uiState = uiState.copy(message = "Der Spielvorschlag wurde gelöscht.")
                 loadGames()
