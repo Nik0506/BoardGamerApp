@@ -241,6 +241,16 @@ Ziel: Umfassende Unit-Test-Abdeckung aller Domain-Modelle, Datenstrukturen, Bere
 - [x] `CoroutineDispatcher`-Injection in allen ViewModels für deterministisches Testen ohne blockierende Threads
 - [x] Behebung eines latenten `ClassCastException`-Fehlers in `ReviewViewModel`
 
+### MS4 – Repository-/DAO-Test (#21)
+
+Ziel: Umfassende Tests der Daten- und Repository-Schicht nach der Migration von Room (DAO) auf Firebase Firestore.
+
+- [x] MockK-Testbibliothek in Gradle integriert (`io.mockk:mockk:1.13.10`)
+- [x] In-Memory-Testdouble [`FakeBoardGamerRepository`](file:///home/red/Documents/BoardGamerApp/app/src/test/java/com/example/boardgamerapp/fake/FakeBoardGamerRepository.kt) angelegt (vollständige Implementierung von `BoardGamerRepository`)
+- [x] [`BoardGamerRepositoryTest.kt`](file:///home/red/Documents/BoardGamerApp/app/src/test/java/com/example/boardgamerapp/BoardGamerRepositoryTest.kt): Vertrags- und Verhaltentests für alle Repository-Bereiche (Terminplanung, Reschedule, Reassign Host, Absagen, Anwesenheiten, Verspätungen, Spielvorschläge, Stimmabgabe, Essensabstimmung, Bestellungen, Bewertungen)
+- [x] [`FirebaseGameNightRepositoryTest.kt`](file:///home/red/Documents/BoardGamerApp/app/src/test/java/com/example/boardgamerapp/FirebaseGameNightRepositoryTest.kt): Tests für Berechtigungsprüfungen (`requireCurrentPlayer`), unautorisierte Zugriffe bei fehlender Authentifizierung und `addPlayer`-Validierung
+- [x] [`AuthAndGroupRepositoryTest.kt`](file:///home/red/Documents/BoardGamerApp/app/src/test/java/com/example/boardgamerapp/AuthAndGroupRepositoryTest.kt): Tests für `AuthRepository` (Status, Logout, Delegation) und `GroupRepository` (Auth-Validierung bei Gruppenerstellung)
+
 ## 9. Nächster Schritt
 
-Nach erfolgreicher Umsetzung von **MS4 – Unit-Tests** folgen die weiteren Test-Schritte: **Repository-Tests (#21)**, **ViewModel-Tests (#22)**, **Compose-UI-Tests (#23)** und **Responsive Design (#41)**.
+Nach erfolgreicher Umsetzung von **MS4 – Repository-/DAO-Test** folgen: **ViewModel-Tests (#22)**, **Compose-UI-Tests (#23)**, **Manueller Test (#24)**, **Responsive Design (#41)** und **Firebase Rulings (#49)**.
