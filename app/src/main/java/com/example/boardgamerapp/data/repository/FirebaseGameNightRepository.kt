@@ -31,15 +31,30 @@ class FirebaseGameNightRepository(
     private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
 ) : BoardGamerRepository {
 
+    @Volatile
+    private var selectedGroupId: String? = null
+
+    @Volatile
+    private var selectedGameNightDocId: String? = null
+
+    override fun selectGameNight(groupId: String, gameNightDocId: String) {
+        selectedGroupId = groupId
+        selectedGameNightDocId = gameNightDocId
+    }
+
     private suspend fun currentGameNightDocId(groupId: String): String? {
+        if (selectedGroupId == groupId && selectedGameNightDocId != null) {
+            return selectedGameNightDocId
+        }
         val snapshot = firestore.collection("groups")
             .document(groupId)
             .collection("gameNights")
             .orderBy("startsAt", Query.Direction.ASCENDING)
-            .limit(1)
+            .limit(20)
             .get()
             .await()
-        return snapshot.documents.firstOrNull()?.id
+        val notFinished = snapshot.documents.firstOrNull { it.getString("status") != GameNightStatus.FINISHED.name }
+        return (notFinished ?: snapshot.documents.firstOrNull())?.id
     }
 
     private suspend fun resolveHostAddress(groupId: String, uid: String): String {
@@ -54,34 +69,83 @@ class FirebaseGameNightRepository(
         return address?.takeIf { it.isNotBlank() } ?: "Keine Adresse hinterlegt"
     }
 
+    private suspend fun resolveHostPlayer(groupId: String, uid: String): Player {
+        val memberSnapshot = firestore.collection("groups").document(groupId).collection("members").document(uid).get().await()
+        val member = if (memberSnapshot.exists()) GroupMember.fromMap(memberSnapshot.data ?: emptyMap()) else null
+        val name = member?.displayName?.takeIf { it.isNotBlank() } ?: uid
+        val address = member?.address?.takeIf { it.isNotBlank() } ?: resolveHostAddress(groupId, uid)
+        return Player(
+            id = uid.hashCode().toLong(),
+            name = name,
+            address = address,
+            hostOrder = member?.hostOrder ?: 0,
+        )
+    }
+
     override suspend fun getUpcomingGameNight(): Result<UpcomingGameNight?> = withContext(Dispatchers.IO) {
         runCatching {
             val groupId = currentGroupId() ?: return@runCatching null
-            val snapshot = firestore.collection("groups")
+            val gameNightDocId = currentGameNightDocId(groupId) ?: return@runCatching null
+            val doc = firestore.collection("groups")
                 .document(groupId)
                 .collection("gameNights")
-                .orderBy("startsAt", Query.Direction.ASCENDING)
-                .limit(1)
+                .document(gameNightDocId)
                 .get()
                 .await()
+            if (!doc.exists()) return@runCatching null
 
-            val doc = snapshot.documents.firstOrNull() ?: return@runCatching null
-            val gameNight = doc.toGameNight() ?: return@runCatching null
+            val gameNight = doc.toGameNight(groupId) ?: return@runCatching null
             val fallbackHost = Player(id = 0L, name = "Gastgeber", address = "", hostOrder = 0)
-            val host = doc.getString("hostUid")?.let { uid ->
-                val memberSnapshot = firestore.collection("groups").document(groupId).collection("members").document(uid).get().await()
-                val member = if (memberSnapshot.exists()) GroupMember.fromMap(memberSnapshot.data ?: emptyMap()) else null
-                val name = member?.displayName?.takeIf { it.isNotBlank() } ?: uid
-                val address = member?.address?.takeIf { it.isNotBlank() } ?: resolveHostAddress(groupId, uid)
-                Player(
-                    id = uid.hashCode().toLong(),
-                    name = name,
-                    address = address,
-                    hostOrder = member?.hostOrder ?: 0,
-                )
-            } ?: fallbackHost
+            val host = doc.getString("hostUid")?.let { uid -> resolveHostPlayer(groupId, uid) } ?: fallbackHost
 
             UpcomingGameNight(gameNight = gameNight.copy(location = host.address.ifBlank { gameNight.location }), host = host)
+        }
+    }
+
+    override suspend fun getUpcomingGameNights(): Result<List<UpcomingGameNightSummary>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val uid = auth.currentUser?.uid ?: error("Du bist nicht angemeldet.")
+            val userGroupDocs = firestore.collection("users").document(uid).collection("groups").get().await()
+
+            val summaries = userGroupDocs.documents.mapNotNull { userGroupDoc ->
+                val groupId = userGroupDoc.id
+                runCatching {
+                    val groupSnapshot = firestore.collection("groups").document(groupId).get().await()
+                    if (!groupSnapshot.exists()) return@runCatching null
+                    val groupName = groupSnapshot.getString("name")?.takeIf { it.isNotBlank() } ?: "Unbenannte Gruppe"
+
+                    val gameNightsSnapshot = firestore.collection("groups")
+                        .document(groupId)
+                        .collection("gameNights")
+                        .orderBy("startsAt", Query.Direction.ASCENDING)
+                        .limit(20)
+                        .get()
+                        .await()
+                    val doc = gameNightsSnapshot.documents.firstOrNull { it.getString("status") != GameNightStatus.FINISHED.name }
+                        ?: return@runCatching null
+                    val gameNight = doc.toGameNight(groupId) ?: return@runCatching null
+                    val fallbackHost = Player(id = 0L, name = "Gastgeber", address = "", hostOrder = 0)
+                    val host = doc.getString("hostUid")?.let { hostUid -> resolveHostPlayer(groupId, hostUid) } ?: fallbackHost
+
+                    UpcomingGameNightSummary(
+                        groupId = groupId,
+                        groupName = groupName,
+                        gameNightDocId = doc.id,
+                        gameNight = gameNight.copy(location = host.address.ifBlank { gameNight.location }),
+                        host = host,
+                    )
+                }.getOrNull()
+            }.sortedBy { it.gameNight.startsAt }
+
+            if (summaries.isEmpty()) {
+                selectedGroupId = null
+                selectedGameNightDocId = null
+            } else if (summaries.none { it.groupId == selectedGroupId && it.gameNightDocId == selectedGameNightDocId }) {
+                val first = summaries.first()
+                selectGameNight(first.groupId, first.gameNightDocId)
+            }
+
+            summaries.map { it.copy(isSelected = it.groupId == selectedGroupId && it.gameNightDocId == selectedGameNightDocId) }
         }
     }
 
@@ -154,6 +218,8 @@ class FirebaseGameNightRepository(
             val stableId = newDoc.id.hashCode().toLong()
             newDoc.update("id", stableId).await()
 
+            selectGameNight(groupId, newDoc.id)
+
             UpcomingGameNight(
                 gameNight = GameNight(
                     id = stableId,
@@ -161,6 +227,7 @@ class FirebaseGameNightRepository(
                     hostId = nextHost.uid.hashCode().toLong(),
                     location = location,
                     status = GameNightStatus.PLANNED,
+                    groupId = groupId,
                 ),
                 host = Player(
                     id = nextHost.uid.hashCode().toLong(),
@@ -216,6 +283,7 @@ class FirebaseGameNightRepository(
                 hostId = targetMember.uid.hashCode().toLong(),
                 location = location,
                 status = GameNightStatus.valueOf(gameNightDoc.getString("status") ?: GameNightStatus.PLANNED.name),
+                groupId = groupId,
             )
             val hostPlayer = Player(
                 id = targetMember.uid.hashCode().toLong(),
@@ -636,7 +704,7 @@ class FirebaseGameNightRepository(
         runCatching {
             val groupId = currentGroupId() ?: return@runCatching null
             val gameNightDoc = currentGameNightDocument(groupId) ?: return@runCatching null
-            val gameNight = gameNightDoc.toGameNight() ?: return@runCatching null
+            val gameNight = gameNightDoc.toGameNight(groupId) ?: return@runCatching null
             val hostUid = gameNightDoc.getString("hostUid") ?: return@runCatching null
             val host = currentGroupPlayers().firstOrNull { it.id == hostUid.hashCode().toLong() }
                 ?: Player(hostUid.hashCode().toLong(), hostUid, "", 0)
@@ -683,7 +751,7 @@ class FirebaseGameNightRepository(
                     "updatedAt" to Timestamp.now(),
                 ),
             ).await()
-            gameNightDoc.toGameNight()?.copy(status = GameNightStatus.FINISHED) ?: error("Der Spieleabend konnte nicht geladen werden.")
+            gameNightDoc.toGameNight(groupId)?.copy(status = GameNightStatus.FINISHED) ?: error("Der Spieleabend konnte nicht geladen werden.")
         }
     }
 
@@ -699,7 +767,7 @@ class FirebaseGameNightRepository(
             requireCurrentPlayer(playerId)
             val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
             val gameNightDoc = currentGameNightDocument(groupId, gameNightId) ?: error("Der Spieleabend wurde nicht gefunden.")
-            val currentGameNight = gameNightDoc.toGameNight() ?: error("Der Spieleabend konnte nicht geladen werden.")
+            val currentGameNight = gameNightDoc.toGameNight(groupId) ?: error("Der Spieleabend konnte nicht geladen werden.")
             require(currentGameNight.status == GameNightStatus.FINISHED) {
                 "Nur abgeschlossene Spieleabende können bewertet werden."
             }
@@ -1022,6 +1090,8 @@ class FirebaseGameNightRepository(
                     },
                 )
             }
+        } else if (selectedGroupId == groupId && selectedGameNightDocId != null) {
+            listOfNotNull(gameNightsRef.document(selectedGameNightDocId!!).get().await().takeIf { it.exists() })
         } else {
             gameNightsRef.orderBy("startsAt", Query.Direction.ASCENDING).limit(1).get().await().documents
         }
@@ -1053,6 +1123,10 @@ class FirebaseGameNightRepository(
 
     private suspend fun currentGroupId(): String? {
         val uid = auth.currentUser?.uid ?: return null
+        selectedGroupId?.let { selected ->
+            val membership = firestore.collection("groups").document(selected).collection("members").document(uid).get().await()
+            if (membership.exists()) return selected
+        }
         val user = firestore.collection("users").document(uid).get().await()
         val activeGroupId = user.getString("activeGroupId")
         if (!activeGroupId.isNullOrBlank()) {
@@ -1064,7 +1138,7 @@ class FirebaseGameNightRepository(
         return groupId
     }
 
-    private fun DocumentSnapshot.toGameNight(): GameNight? {
+    private fun DocumentSnapshot.toGameNight(groupId: String): GameNight? {
         val startsAt = getTimestamp("startsAt")?.toDate()?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDateTime()
             ?: return null
         val hostUid = getString("hostUid") ?: return null
@@ -1077,6 +1151,7 @@ class FirebaseGameNightRepository(
             hostId = hostUid.hashCode().toLong(),
             location = location,
             status = GameNightStatus.valueOf(statusValue),
+            groupId = groupId,
         )
     }
 }

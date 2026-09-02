@@ -13,6 +13,7 @@ import com.example.boardgamerapp.ui.dashboard.DashboardPlayerUiModel
 import com.example.boardgamerapp.ui.dashboard.DashboardScreen
 import com.example.boardgamerapp.ui.dashboard.DashboardUiState
 import com.example.boardgamerapp.ui.dashboard.GameNightEditorUiState
+import com.example.boardgamerapp.ui.dashboard.GameNightPickerUiModel
 import com.example.boardgamerapp.ui.dashboard.GameNightUiModel
 import org.junit.Rule
 import org.junit.Test
@@ -193,5 +194,83 @@ class DashboardScreenTest {
         composeRule.onNodeWithText("Möchtest du deine Teilnahme für diesen Spieleabend absagen?").assertIsDisplayed()
         composeRule.onNodeWithText("Absage bestätigen").assertIsDisplayed()
         composeRule.onNodeWithText("Abbrechen").performClick()
+    }
+
+    @Test
+    fun gameNightPickerShowsUpcomingNightsAndSwitchesSelection() {
+        var selectedGroupId = "groupA"
+
+        composeRule.setContent {
+            var state by remember {
+                mutableStateOf(
+                    DashboardUiState.Content(
+                        gameNight = GameNightUiModel(
+                            date = "Freitag, 28. August 2026",
+                            time = "19:00 Uhr",
+                            hostName = "Max Mustermann",
+                            location = "Musterstraße 12",
+                            groupName = "Würfelfreunde",
+                        ),
+                        upcomingGameNights = listOf(
+                            GameNightPickerUiModel(
+                                groupId = "groupA",
+                                gameNightDocId = "docA",
+                                groupName = "Würfelfreunde",
+                                date = "Freitag, 28. August 2026",
+                                time = "19:00 Uhr",
+                                hostName = "Max Mustermann",
+                                isSelected = true,
+                                hasCollision = false,
+                            ),
+                            GameNightPickerUiModel(
+                                groupId = "groupB",
+                                gameNightDocId = "docB",
+                                groupName = "Brettspielnacht",
+                                date = "Samstag, 5. September 2026",
+                                time = "20:00 Uhr",
+                                hostName = "Erika Musterfrau",
+                                isSelected = false,
+                                hasCollision = false,
+                            ),
+                        ),
+                    ),
+                )
+            }
+
+            DashboardScreen(
+                uiState = state,
+                onRetry = {},
+                onSelectGameNight = { groupId, _ ->
+                    selectedGroupId = groupId
+                    state = state.copy(message = "Termin gewechselt")
+                },
+            )
+        }
+
+        composeRule.onNodeWithText("Deine anstehenden Termine").assertIsDisplayed()
+        composeRule.onNodeWithText("Würfelfreunde").assertIsDisplayed()
+        composeRule.onNodeWithText("Brettspielnacht").assertIsDisplayed()
+
+        composeRule.onNodeWithText("Brettspielnacht").performClick()
+        composeRule.onNodeWithText("Termin gewechselt").assertIsDisplayed()
+        org.junit.Assert.assertEquals("groupB", selectedGroupId)
+    }
+
+    @Test
+    fun emptyStateOffersPlanningAction() {
+        var planClicked = false
+
+        composeRule.setContent {
+            DashboardScreen(
+                uiState = DashboardUiState.Empty,
+                onRetry = {},
+                onPlanGameNight = { planClicked = true },
+            )
+        }
+
+        composeRule.onNodeWithText("Noch kein Spieleabend geplant").assertIsDisplayed()
+        composeRule.onNodeWithText("Spieleabend planen").assertIsDisplayed()
+        composeRule.onNodeWithText("Spieleabend planen").performClick()
+        org.junit.Assert.assertTrue(planClicked)
     }
 }

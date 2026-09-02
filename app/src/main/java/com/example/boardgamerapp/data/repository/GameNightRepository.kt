@@ -18,6 +18,15 @@ data class UpcomingGameNight(
     val host: Player,
 )
 
+data class UpcomingGameNightSummary(
+    val groupId: String,
+    val groupName: String,
+    val gameNightDocId: String,
+    val gameNight: GameNight,
+    val host: Player,
+    val isSelected: Boolean = false,
+)
+
 data class BoardGameSuggestion(
     val boardGame: BoardGame,
     val suggestedBy: Player,
@@ -87,6 +96,16 @@ data class OrderingSnapshot(
 
 interface GameNightRepository {
     suspend fun getUpcomingGameNight(): Result<UpcomingGameNight?>
+
+    /**
+     * Alle anstehenden (nicht abgeschlossenen) Spieleabende über alle Gruppen des
+     * angemeldeten Nutzers hinweg, chronologisch sortiert. Legt implizit fest, welcher
+     * Termin als "ausgewählt" gilt, solange [selectGameNight] nicht explizit aufgerufen wurde.
+     */
+    suspend fun getUpcomingGameNights(): Result<List<UpcomingGameNightSummary>> = Result.success(emptyList())
+
+    /** Setzt den Termin, auf den sich [getUpcomingGameNight] und alle fachlichen Aufrufe beziehen. */
+    fun selectGameNight(groupId: String, gameNightDocId: String) = Unit
 
     suspend fun updateGameNight(
         gameNightId: Long,

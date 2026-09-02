@@ -13,6 +13,19 @@ data class GameNightUiModel(
     val hostId: Long = 0L,
     val location: String,
     val startsAt: LocalDateTime? = null,
+    val groupId: String = "",
+    val groupName: String = "",
+)
+
+data class GameNightPickerUiModel(
+    val groupId: String,
+    val gameNightDocId: String,
+    val groupName: String,
+    val date: String,
+    val time: String,
+    val hostName: String,
+    val isSelected: Boolean,
+    val hasCollision: Boolean,
 )
 
 data class DashboardPlayerUiModel(
@@ -59,6 +72,7 @@ sealed interface DashboardUiState {
     data object Empty : DashboardUiState
     data class Content(
         val gameNight: GameNightUiModel,
+        val upcomingGameNights: List<GameNightPickerUiModel> = emptyList(),
         val players: List<DashboardPlayerUiModel> = emptyList(),
         val selectedPlayerId: Long? = null,
         val attendances: List<DashboardAttendanceUiModel> = emptyList(),

@@ -1,5 +1,6 @@
 package com.example.boardgamerapp.ui.dashboard
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,8 +10,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -34,6 +38,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -77,6 +82,8 @@ fun DashboardScreen(
     onLateNoticeCustomMinutesChange: (String) -> Unit = {},
     onSaveStatusReport: () -> Unit = {},
     onDismissStatusReport: () -> Unit = {},
+    onSelectGameNight: (String, String) -> Unit = { _, _ -> },
+    onPlanGameNight: () -> Unit = {},
     onDismissMessage: () -> Unit = {},
 ) {
     when (uiState) {
@@ -99,6 +106,12 @@ fun DashboardScreen(
                 modifier = Modifier.padding(top = 12.dp),
                 textAlign = TextAlign.Center,
             )
+            Button(
+                onClick = onPlanGameNight,
+                modifier = Modifier.padding(top = 20.dp),
+            ) {
+                Text("Spieleabend planen")
+            }
         }
 
         is DashboardUiState.Error -> CenteredMessage(modifier = modifier) {
@@ -136,6 +149,7 @@ fun DashboardScreen(
             onLateNoticeCustomMinutesChange = onLateNoticeCustomMinutesChange,
             onSaveStatusReport = onSaveStatusReport,
             onDismissStatusReport = onDismissStatusReport,
+            onSelectGameNight = onSelectGameNight,
             onDismissMessage = onDismissMessage,
             modifier = modifier,
         )
@@ -159,6 +173,7 @@ private fun DashboardContent(
     onLateNoticeCustomMinutesChange: (String) -> Unit,
     onSaveStatusReport: () -> Unit,
     onDismissStatusReport: () -> Unit,
+    onSelectGameNight: (String, String) -> Unit,
     onDismissMessage: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -188,6 +203,14 @@ private fun DashboardContent(
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                     )
+                    if (uiState.gameNight.groupName.isNotBlank()) {
+                        Text(
+                            text = uiState.gameNight.groupName,
+                            modifier = Modifier.padding(top = 2.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
 
                 var menuExpanded by remember { mutableStateOf(false) }
@@ -212,6 +235,28 @@ private fun DashboardContent(
                                 menuExpanded = false
                                 onEditGameNight()
                             },
+                        )
+                    }
+                }
+            }
+        }
+
+        if (uiState.upcomingGameNights.isNotEmpty()) {
+            item {
+                Text(
+                    text = "Deine anstehenden Termine",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            item {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(uiState.upcomingGameNights, key = { "${it.groupId}_${it.gameNightDocId}" }) { entry ->
+                        GameNightPickerCard(
+                            entry = entry,
+                            onClick = { onSelectGameNight(entry.groupId, entry.gameNightDocId) },
                         )
                     }
                 }
@@ -434,9 +479,9 @@ private fun DashboardContent(
                             AttendanceStatusType.PENDING -> MaterialTheme.colorScheme.onSurfaceVariant
                         }
 
-                        androidx.compose.material3.Surface(
+                        Surface(
                             color = badgeColor,
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(8.dp),
                         ) {
                             Text(
                                 text = badgeText,
@@ -804,6 +849,58 @@ private fun DetailRow(label: String, value: String) {
             fontWeight = FontWeight.Medium,
             textAlign = TextAlign.End,
         )
+    }
+}
+
+@Composable
+private fun GameNightPickerCard(
+    entry: GameNightPickerUiModel,
+    onClick: () -> Unit,
+) {
+    val borderColor = if (entry.isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        color = if (entry.isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+        border = BorderStroke(if (entry.isSelected) 2.dp else 1.dp, borderColor),
+        modifier = Modifier.semantics { contentDescription = "Termin ${entry.groupName} ${entry.date}" },
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(12.dp)
+                .widthIn(min = 160.dp),
+        ) {
+            Text(
+                text = entry.groupName,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = if (entry.isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = entry.date,
+                modifier = Modifier.padding(top = 4.dp),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                text = entry.time,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = "Gastgeber: ${entry.hostName}",
+                modifier = Modifier.padding(top = 4.dp),
+                style = MaterialTheme.typography.bodySmall,
+            )
+            if (entry.hasCollision) {
+                Text(
+                    text = "⚠️ Terminkonflikt",
+                    modifier = Modifier.padding(top = 4.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
     }
 }
 
