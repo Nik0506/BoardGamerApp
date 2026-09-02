@@ -104,6 +104,16 @@ private fun SignedInApp(userUid: String) {
         mutableStateOf(AppDestination.GAME_NIGHT)
     }
 
+    var selectedGroupId by rememberSaveable(userUid) { mutableStateOf<String?>(null) }
+    var selectedGameNightDocId by rememberSaveable(userUid) { mutableStateOf<String?>(null) }
+    androidx.compose.runtime.LaunchedEffect(firebaseGameNightRepository) {
+        val groupId = selectedGroupId
+        val gameNightDocId = selectedGameNightDocId
+        if (groupId != null && gameNightDocId != null) {
+            firebaseGameNightRepository.selectGameNight(groupId, gameNightDocId)
+        }
+    }
+
     NavigationSuiteScaffold(
         navigationSuiteItems = {
             AppDestination.entries.forEach { destination ->
@@ -178,6 +188,15 @@ private fun SignedInApp(userUid: String) {
                     onLateNoticeCustomMinutesChange = dashboardViewModel::updateLateNoticeCustomMinutes,
                     onSaveStatusReport = dashboardViewModel::saveStatusReport,
                     onDismissStatusReport = dashboardViewModel::dismissStatusReport,
+                    onSelectGameNight = { groupId, gameNightDocId ->
+                        selectedGroupId = groupId
+                        selectedGameNightDocId = gameNightDocId
+                        dashboardViewModel.selectGameNight(groupId, gameNightDocId)
+                        gamesViewModel.loadGames()
+                        foodViewModel.load()
+                        reviewViewModel.load()
+                    },
+                    onPlanGameNight = dashboardViewModel::planNextGameNight,
                     onDismissMessage = dashboardViewModel::clearMessage,
                     modifier = Modifier.padding(innerPadding),
                 )

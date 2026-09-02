@@ -5,6 +5,7 @@ import com.example.boardgamerapp.data.repository.GameNightRepository
 import com.example.boardgamerapp.data.repository.MoveDirection
 import com.example.boardgamerapp.data.repository.PlayerRepository
 import com.example.boardgamerapp.data.repository.UpcomingGameNight
+import com.example.boardgamerapp.data.repository.UpcomingGameNightSummary
 import com.example.boardgamerapp.domain.model.AttendanceStatusType
 import com.example.boardgamerapp.domain.model.GameNightAttendance
 import com.example.boardgamerapp.domain.model.GameNight
@@ -537,6 +538,93 @@ class DashboardViewModelTest {
         val content = viewModel.uiState as DashboardUiState.Content
         assertNull(content.statusReportEditor)
         assertEquals("Verspätungsmeldung wurde gespeichert.", content.message)
+    }
+
+    @Test
+    fun `loadGameNight maps upcoming game nights across groups with collision detection`() = runTest(dispatcher) {
+        val hostA = Player(1, "Max Mustermann", "Musterstraße 12", 1)
+        val hostB = Player(2, "Erika Musterfrau", "Neustraße 5", 1)
+        val hostC = Player(3, "Tom Beispiel", "Beispielweg 3", 1)
+        val collisionTime = LocalDateTime.of(2026, 9, 20, 19, 0)
+        val nightA = GameNight(id = 10, startsAt = collisionTime, hostId = hostA.id, location = hostA.address, status = GameNightStatus.PLANNED, groupId = "groupA")
+        val nightB = GameNight(id = 11, startsAt = collisionTime, hostId = hostB.id, location = hostB.address, status = GameNightStatus.PLANNED, groupId = "groupB")
+        val nightC = GameNight(
+            id = 12,
+            startsAt = LocalDateTime.of(2026, 9, 27, 19, 0),
+            hostId = hostC.id,
+            location = hostC.address,
+            status = GameNightStatus.PLANNED,
+            groupId = "groupC",
+        )
+        val summaries = listOf(
+            UpcomingGameNightSummary("groupA", "Würfelfreunde", "docA", nightA, hostA, isSelected = true),
+            UpcomingGameNightSummary("groupB", "Brettspielnacht", "docB", nightB, hostB, isSelected = false),
+            UpcomingGameNightSummary("groupC", "Kniffelclub", "docC", nightC, hostC, isSelected = false),
+        )
+
+        val repo = object : GameNightRepository {
+            override suspend fun getUpcomingGameNight(): Result<UpcomingGameNight?> =
+                Result.success(UpcomingGameNight(nightA, hostA))
+
+            override suspend fun getUpcomingGameNights(): Result<List<UpcomingGameNightSummary>> =
+                Result.success(summaries)
+        }
+
+        val viewModel = DashboardViewModel(repository = repo, ioDispatcher = dispatcher)
+        advanceUntilIdle()
+
+        val content = viewModel.uiState as DashboardUiState.Content
+        assertEquals(3, content.upcomingGameNights.size)
+        assertEquals("Würfelfreunde", content.gameNight.groupName)
+
+        val entryA = content.upcomingGameNights.first { it.groupId == "groupA" }
+        val entryB = content.upcomingGameNights.first { it.groupId == "groupB" }
+        val entryC = content.upcomingGameNights.first { it.groupId == "groupC" }
+        assertTrue(entryA.isSelected)
+        assertTrue(entryA.hasCollision)
+        assertTrue(entryB.hasCollision)
+        assertTrue(!entryC.isSelected)
+        assertTrue(!entryC.hasCollision)
+    }
+
+    @Test
+    fun `selectGameNight switches repository selection and reloads content`() = runTest(dispatcher) {
+        val hostA = Player(1, "Max Mustermann", "Musterstraße 12", 1)
+        val hostB = Player(2, "Erika Musterfrau", "Neustraße 5", 1)
+        val nightA = GameNight(id = 10, startsAt = LocalDateTime.of(2026, 9, 20, 19, 0), hostId = hostA.id, location = hostA.address, status = GameNightStatus.PLANNED, groupId = "groupA")
+        val nightB = GameNight(id = 11, startsAt = LocalDateTime.of(2026, 9, 27, 19, 0), hostId = hostB.id, location = hostB.address, status = GameNightStatus.PLANNED, groupId = "groupB")
+
+        var selectedKey = "groupA" to "docA"
+        val selectCalls = mutableListOf<Pair<String, String>>()
+
+        val repo = object : GameNightRepository {
+            override suspend fun getUpcomingGameNight(): Result<UpcomingGameNight?> =
+                Result.success(if (selectedKey.first == "groupA") UpcomingGameNight(nightA, hostA) else UpcomingGameNight(nightB, hostB))
+
+            override suspend fun getUpcomingGameNights(): Result<List<UpcomingGameNightSummary>> = Result.success(
+                listOf(
+                    UpcomingGameNightSummary("groupA", "Würfelfreunde", "docA", nightA, hostA, isSelected = selectedKey.first == "groupA"),
+                    UpcomingGameNightSummary("groupB", "Brettspielnacht", "docB", nightB, hostB, isSelected = selectedKey.first == "groupB"),
+                ),
+            )
+
+            override fun selectGameNight(groupId: String, gameNightDocId: String) {
+                selectCalls.add(groupId to gameNightDocId)
+                selectedKey = groupId to gameNightDocId
+            }
+        }
+
+        val viewModel = DashboardViewModel(repository = repo, ioDispatcher = dispatcher)
+        advanceUntilIdle()
+        assertEquals("Würfelfreunde", (viewModel.uiState as DashboardUiState.Content).gameNight.groupName)
+
+        viewModel.selectGameNight("groupB", "docB")
+        advanceUntilIdle()
+
+        assertEquals(listOf("groupB" to "docB"), selectCalls)
+        val content = viewModel.uiState as DashboardUiState.Content
+        assertEquals("Brettspielnacht", content.gameNight.groupName)
+        assertTrue(content.upcomingGameNights.first { it.groupId == "groupB" }.isSelected)
     }
 
     private fun repositoryReturning(

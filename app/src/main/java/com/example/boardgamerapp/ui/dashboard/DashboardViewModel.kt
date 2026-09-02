@@ -46,6 +46,16 @@ class DashboardViewModel(
     }
 
     private suspend fun fetchGameNightContent(successMessage: String? = null) {
+        val summariesResult = withContext(ioDispatcher) { repository.getUpcomingGameNights() }
+        if (summariesResult.isFailure) {
+            uiState = DashboardUiState.Error(
+                message = summariesResult.exceptionOrNull()?.message
+                    ?: "Die anstehenden Spieleabende konnten nicht geladen werden.",
+            )
+            return
+        }
+        val summaries = summariesResult.getOrThrow()
+
         val upcomingResult = withContext(ioDispatcher) { repository.getUpcomingGameNight() }
         val upcoming = upcomingResult.getOrNull()
         if (upcomingResult.isFailure) {
@@ -87,13 +97,52 @@ class DashboardViewModel(
             )
         }
 
+        val collisionDays = summaries
+            .groupBy { it.gameNight.startsAt.toLocalDate() }
+            .filterValues { it.size > 1 }
+            .keys
+        val pickerModels = summaries.map { summary ->
+            GameNightPickerUiModel(
+                groupId = summary.groupId,
+                gameNightDocId = summary.gameNightDocId,
+                groupName = summary.groupName,
+                date = summary.gameNight.startsAt.format(dateFormatter),
+                time = summary.gameNight.startsAt.format(timeFormatter),
+                hostName = summary.host.name,
+                isSelected = summary.isSelected,
+                hasCollision = summary.gameNight.startsAt.toLocalDate() in collisionDays,
+            )
+        }
+        val selectedGroupName = summaries.firstOrNull { it.isSelected }?.groupName.orEmpty()
+
         uiState = DashboardUiState.Content(
-            gameNight = upcoming.toUiModel(),
+            gameNight = upcoming.toUiModel(selectedGroupName),
+            upcomingGameNights = pickerModels,
             players = players,
             selectedPlayerId = currentPlayerId?.takeIf { id -> players.any { it.id == id } },
             attendances = attendanceUiModels,
             message = successMessage,
         )
+    }
+
+    fun selectGameNight(groupId: String, gameNightDocId: String) {
+        repository.selectGameNight(groupId, gameNightDocId)
+        loadGameNight()
+    }
+
+    fun planNextGameNight() {
+        val playerRepo = playerRepository ?: return
+        uiState = DashboardUiState.Loading
+        viewModelScope.launch {
+            withContext(ioDispatcher) { playerRepo.createNextGameNight() }.fold(
+                onSuccess = { loadGameNight() },
+                onFailure = { error ->
+                    uiState = DashboardUiState.Error(
+                        message = error.message ?: "Der Spieleabend konnte nicht geplant werden.",
+                    )
+                },
+            )
+        }
     }
 
     fun confirmAttending() {
@@ -366,7 +415,7 @@ class DashboardViewModel(
             .map { DashboardPlayerUiModel(id = it.id, name = it.name) }
     }
 
-    private fun UpcomingGameNight.toUiModel(): GameNightUiModel = GameNightUiModel(
+    private fun UpcomingGameNight.toUiModel(groupName: String = ""): GameNightUiModel = GameNightUiModel(
         id = gameNight.id,
         date = gameNight.startsAt.format(dateFormatter),
         time = gameNight.startsAt.format(timeFormatter),
@@ -374,6 +423,8 @@ class DashboardViewModel(
         hostId = host.id,
         location = gameNight.location,
         startsAt = gameNight.startsAt,
+        groupId = gameNight.groupId,
+        groupName = groupName,
     )
 
     companion object {

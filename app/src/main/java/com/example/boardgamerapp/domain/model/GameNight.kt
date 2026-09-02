@@ -8,6 +8,7 @@ data class GameNight(
     val hostId: Long,
     val location: String,
     val status: GameNightStatus,
+    val groupId: String = "",
 )
 
 enum class GameNightStatus {
