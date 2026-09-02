@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -162,7 +164,7 @@ fun FoodScreen(
             onDismissRequest = onDismissCategoryEditor,
             title = { Text("Essenskategorie") },
             text = {
-                Column {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     OutlinedTextField(value, onCategoryNameChange, Modifier.fillMaxWidth(), label = { Text("Name") }, singleLine = true)
                     uiState.editorError?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 6.dp)) }
                 }
@@ -175,7 +177,7 @@ fun FoodScreen(
         AlertDialog(
             onDismissRequest = onDismissRestaurantEditor,
             title = { Text("Restaurant") },
-            text = { Column {
+            text = { Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 OutlinedTextField(editor.name, onRestaurantNameChange, Modifier.fillMaxWidth(), label = { Text("Restaurantname") }, singleLine = true)
                 OutlinedTextField(editor.menuUrl, onMenuUrlChange, Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("Menü-Link") }, singleLine = true)
                 uiState.editorError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -188,7 +190,7 @@ fun FoodScreen(
         AlertDialog(
             onDismissRequest = onDismissOrderEditor,
             title = { Text("Meine Bestellung") },
-            text = { Column {
+            text = { Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 OutlinedTextField(editor.dish, onOrderDishChange, Modifier.fillMaxWidth(), label = { Text("Gericht") }, singleLine = true)
                 OutlinedTextField(editor.note, onOrderNoteChange, Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("Hinweis (optional)") })
                 OutlinedTextField(editor.price, onOrderPriceChange, Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("Preis in Euro") }, singleLine = true)
