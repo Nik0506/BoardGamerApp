@@ -1,6 +1,7 @@
 package com.example.boardgamerapp.ui.dashboard
 
 import com.example.boardgamerapp.domain.model.AttendanceStatusType
+import com.example.boardgamerapp.domain.model.GameNightStatus
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -15,6 +16,9 @@ data class GameNightUiModel(
     val startsAt: LocalDateTime? = null,
     val groupId: String = "",
     val groupName: String = "",
+    val status: GameNightStatus = GameNightStatus.PLANNED,
+    val cancelReason: String? = null,
+    val cancelledAt: String? = null,
 )
 
 data class GameNightPickerUiModel(
@@ -67,6 +71,12 @@ data class GameNightEditorUiState(
     val errorMessage: String? = null,
 )
 
+data class CancelGameNightEditorUiState(
+    val reason: String = "",
+    val isSaving: Boolean = false,
+    val errorMessage: String? = null,
+)
+
 sealed interface DashboardUiState {
     data object Loading : DashboardUiState
     data object Empty : DashboardUiState
@@ -78,6 +88,7 @@ sealed interface DashboardUiState {
         val attendances: List<DashboardAttendanceUiModel> = emptyList(),
         val statusReportEditor: StatusReportEditorUiState? = null,
         val gameNightEditor: GameNightEditorUiState? = null,
+        val cancelGameNightEditor: CancelGameNightEditorUiState? = null,
         val message: String? = null,
         val errorMessage: String? = null,
     ) : DashboardUiState {

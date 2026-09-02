@@ -265,6 +265,59 @@ class DashboardViewModel(
         }
     }
 
+    fun beginCancelGameNight() {
+        val content = uiState as? DashboardUiState.Content ?: return
+        uiState = content.copy(
+            cancelGameNightEditor = CancelGameNightEditorUiState(),
+            message = null,
+            errorMessage = null,
+        )
+    }
+
+    fun updateCancelReason(reason: String) {
+        val content = uiState as? DashboardUiState.Content ?: return
+        val editor = content.cancelGameNightEditor ?: return
+        uiState = content.copy(cancelGameNightEditor = editor.copy(reason = reason, errorMessage = null))
+    }
+
+    fun dismissCancelGameNight() {
+        val content = uiState as? DashboardUiState.Content ?: return
+        uiState = content.copy(cancelGameNightEditor = null)
+    }
+
+    fun confirmCancelGameNight() {
+        val content = uiState as? DashboardUiState.Content ?: return
+        val editor = content.cancelGameNightEditor ?: return
+        val gameNightId = content.gameNight.id
+        uiState = content.copy(cancelGameNightEditor = editor.copy(isSaving = true, errorMessage = null))
+
+        viewModelScope.launch {
+            val result = withContext(ioDispatcher) {
+                repository.cancelGameNight(gameNightId, editor.reason.ifBlank { null })
+            }
+            result.fold(
+                onSuccess = {
+                    val reasonSuffix = if (editor.reason.isNotBlank()) " Grund: ${editor.reason}" else ""
+                    onSendNotification?.invoke(
+                        "Spieleabend abgesagt",
+                        "Der Spieleabend am ${content.gameNight.date} wurde abgesagt.$reasonSuffix",
+                    )
+                    fetchGameNightContent(
+                        successMessage = "Der Spieleabend wurde abgesagt. Teilnehmer wurden per Push-Nachricht informiert.",
+                    )
+                },
+                onFailure = { error ->
+                    uiState = content.copy(
+                        cancelGameNightEditor = editor.copy(
+                            isSaving = false,
+                            errorMessage = error.message ?: "Der Spieleabend konnte nicht abgesagt werden.",
+                        ),
+                    )
+                },
+            )
+        }
+    }
+
     fun beginStatusReport() {
         val content = uiState as? DashboardUiState.Content ?: return
         if (content.selectedPlayerId == null) {
@@ -425,6 +478,9 @@ class DashboardViewModel(
         startsAt = gameNight.startsAt,
         groupId = gameNight.groupId,
         groupName = groupName,
+        status = gameNight.status,
+        cancelReason = gameNight.cancelReason,
+        cancelledAt = gameNight.cancelledAt?.format(noticeDateFormatter),
     )
 
     companion object {

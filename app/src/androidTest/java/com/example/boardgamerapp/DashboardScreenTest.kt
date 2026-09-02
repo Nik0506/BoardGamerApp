@@ -113,6 +113,66 @@ class DashboardScreenTest {
     }
 
     @Test
+    fun cancelGameNightOptionOpensDialogAndConfirms() {
+        composeRule.setContent {
+            var state by remember {
+                mutableStateOf(
+                    DashboardUiState.Content(
+                        gameNight = GameNightUiModel(
+                            id = 1L,
+                            date = "Freitag, 28. August 2026",
+                            time = "19:00 Uhr",
+                            hostName = "Max Mustermann",
+                            hostId = 1L,
+                            location = "Musterstraße 12",
+                        ),
+                        players = listOf(DashboardPlayerUiModel(1L, "Max Mustermann")),
+                        selectedPlayerId = 1L,
+                    ),
+                )
+            }
+
+            DashboardScreen(
+                uiState = state,
+                onRetry = {},
+                onBeginCancelGameNight = {
+                    state = state.copy(
+                        cancelGameNightEditor = com.example.boardgamerapp.ui.dashboard.CancelGameNightEditorUiState(),
+                    )
+                },
+                onCancelReasonChange = { reason ->
+                    state = state.copy(cancelGameNightEditor = state.cancelGameNightEditor?.copy(reason = reason))
+                },
+                onConfirmCancelGameNight = {
+                    state = state.copy(
+                        cancelGameNightEditor = null,
+                        gameNight = state.gameNight.copy(
+                            status = com.example.boardgamerapp.domain.model.GameNightStatus.CANCELLED,
+                            cancelReason = state.cancelGameNightEditor?.reason,
+                        ),
+                        message = "Der Spieleabend wurde abgesagt. Teilnehmer wurden per Push-Nachricht informiert.",
+                    )
+                },
+                onDismissCancelGameNight = {
+                    state = state.copy(cancelGameNightEditor = null)
+                },
+            )
+        }
+
+        composeRule.onNodeWithContentDescription("Optionen").performClick()
+        composeRule.onNodeWithText("Spieleabend absagen").assertIsDisplayed()
+        composeRule.onNodeWithText("Spieleabend absagen").performClick()
+
+        composeRule.onNodeWithText("Meldungstext (optional)").assertIsDisplayed()
+        composeRule.onNodeWithText("Absagen bestätigen").performClick()
+
+        composeRule.onNodeWithText(
+            "Der Spieleabend wurde abgesagt. Teilnehmer wurden per Push-Nachricht informiert.",
+        ).assertIsDisplayed()
+        composeRule.onNodeWithText("❌ Dieser Spieleabend wurde abgesagt.").assertIsDisplayed()
+    }
+
+    @Test
     fun attendanceRsvpActionsAreAccessible() {
         composeRule.setContent {
             var state by remember {

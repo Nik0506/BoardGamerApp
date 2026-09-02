@@ -112,6 +112,10 @@ interface GameNightRepository {
         startsAt: java.time.LocalDateTime,
         hostPlayerId: Long,
     ): Result<UpcomingGameNight> = Result.failure(UnsupportedOperationException("Nicht implementiert"))
+
+    /** Sagt einen Spieleabend ab. Nur erlaubt, solange sein Status noch [com.example.boardgamerapp.domain.model.GameNightStatus.PLANNED] ist. */
+    suspend fun cancelGameNight(gameNightId: Long, reason: String? = null): Result<GameNight> =
+        Result.failure(UnsupportedOperationException("Nicht implementiert"))
 }
 
 interface AttendanceRepository {

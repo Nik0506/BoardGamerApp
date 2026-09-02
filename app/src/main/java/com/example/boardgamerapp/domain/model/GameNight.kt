@@ -9,10 +9,13 @@ data class GameNight(
     val location: String,
     val status: GameNightStatus,
     val groupId: String = "",
+    val cancelReason: String? = null,
+    val cancelledAt: LocalDateTime? = null,
 )
 
 enum class GameNightStatus {
     PLANNED,
     ACTIVE,
     FINISHED,
+    CANCELLED,
 }

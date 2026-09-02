@@ -295,6 +295,34 @@ class FirebaseGameNightRepository(
         }
     }
 
+    override suspend fun cancelGameNight(gameNightId: Long, reason: String?): Result<GameNight> = withContext(Dispatchers.IO) {
+        runCatching {
+            val groupId = currentGroupId() ?: error("Du bist in keiner Gruppe angemeldet.")
+            val gameNightDoc = currentGameNightDocument(groupId, gameNightId)
+                ?: error("Der Spieleabend wurde nicht gefunden.")
+            val currentStatus = GameNightStatus.valueOf(gameNightDoc.getString("status") ?: GameNightStatus.PLANNED.name)
+            require(currentStatus == GameNightStatus.PLANNED) {
+                "Nur geplante Spieleabende können abgesagt werden."
+            }
+            val cleanReason = reason?.trim()?.takeIf { it.isNotBlank() }
+            val cancelledAt = LocalDateTime.now()
+            val updateData = mutableMapOf<String, Any>(
+                "status" to GameNightStatus.CANCELLED.name,
+                "cancelledAt" to Timestamp.now(),
+                "updatedAt" to Timestamp.now(),
+            )
+            if (cleanReason != null) {
+                updateData["cancelReason"] = cleanReason
+            }
+            gameNightDoc.reference.update(updateData).await()
+            gameNightDoc.toGameNight(groupId)?.copy(
+                status = GameNightStatus.CANCELLED,
+                cancelReason = cleanReason,
+                cancelledAt = cancelledAt,
+            ) ?: error("Der Spieleabend konnte nicht geladen werden.")
+        }
+    }
+
     private fun rotateHostList(memberUids: List<String>, preferredUid: String): List<String> {
         if (preferredUid.isBlank() || memberUids.isEmpty()) return memberUids
         val others = memberUids.filter { it != preferredUid }
@@ -1145,6 +1173,7 @@ class FirebaseGameNightRepository(
         val location = getString("location") ?: ""
         val statusValue = getString("status") ?: GameNightStatus.PLANNED.name
         val stableId = getLong("id") ?: id.hashCode().toLong()
+        val cancelledAt = getTimestamp("cancelledAt")?.toDate()?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDateTime()
         return GameNight(
             id = stableId,
             startsAt = startsAt,
@@ -1152,6 +1181,8 @@ class FirebaseGameNightRepository(
             location = location,
             status = GameNightStatus.valueOf(statusValue),
             groupId = groupId,
+            cancelReason = getString("cancelReason"),
+            cancelledAt = cancelledAt,
         )
     }
 }

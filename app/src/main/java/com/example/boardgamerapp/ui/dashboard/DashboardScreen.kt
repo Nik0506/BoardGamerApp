@@ -55,6 +55,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.boardgamerapp.R
 import com.example.boardgamerapp.domain.model.AttendanceStatusType
+import com.example.boardgamerapp.domain.model.GameNightStatus
 import com.example.boardgamerapp.ui.theme.BoardGamerAppTheme
 import java.time.Instant
 import java.time.LocalDate
@@ -74,6 +75,10 @@ fun DashboardScreen(
     onGameNightHostChange: (Long) -> Unit = {},
     onSaveEditedGameNight: () -> Unit = {},
     onDismissGameNightEditor: () -> Unit = {},
+    onBeginCancelGameNight: () -> Unit = {},
+    onCancelReasonChange: (String) -> Unit = {},
+    onConfirmCancelGameNight: () -> Unit = {},
+    onDismissCancelGameNight: () -> Unit = {},
     onConfirmAttending: () -> Unit = {},
     onBeginStatusReport: () -> Unit = {},
     onSelectStatusReportType: (StatusReportType) -> Unit = {},
@@ -141,6 +146,10 @@ fun DashboardScreen(
             onGameNightHostChange = onGameNightHostChange,
             onSaveEditedGameNight = onSaveEditedGameNight,
             onDismissGameNightEditor = onDismissGameNightEditor,
+            onBeginCancelGameNight = onBeginCancelGameNight,
+            onCancelReasonChange = onCancelReasonChange,
+            onConfirmCancelGameNight = onConfirmCancelGameNight,
+            onDismissCancelGameNight = onDismissCancelGameNight,
             onConfirmAttending = onConfirmAttending,
             onBeginStatusReport = onBeginStatusReport,
             onSelectStatusReportType = onSelectStatusReportType,
@@ -165,6 +174,10 @@ private fun DashboardContent(
     onGameNightHostChange: (Long) -> Unit,
     onSaveEditedGameNight: () -> Unit,
     onDismissGameNightEditor: () -> Unit,
+    onBeginCancelGameNight: () -> Unit,
+    onCancelReasonChange: (String) -> Unit,
+    onConfirmCancelGameNight: () -> Unit,
+    onDismissCancelGameNight: () -> Unit,
     onConfirmAttending: () -> Unit,
     onBeginStatusReport: () -> Unit,
     onSelectStatusReportType: (StatusReportType) -> Unit,
@@ -236,6 +249,43 @@ private fun DashboardContent(
                                 onEditGameNight()
                             },
                         )
+                        if (uiState.gameNight.status == GameNightStatus.PLANNED) {
+                            DropdownMenuItem(
+                                text = { Text("Spieleabend absagen") },
+                                onClick = {
+                                    menuExpanded = false
+                                    onBeginCancelGameNight()
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        if (uiState.gameNight.status == GameNightStatus.CANCELLED) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = androidx.compose.material3.CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                    ),
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "❌ Dieser Spieleabend wurde abgesagt.",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                        )
+                        uiState.gameNight.cancelReason?.takeIf { it.isNotBlank() }?.let { reason ->
+                            Text(
+                                text = "Grund: $reason",
+                                modifier = Modifier.padding(top = 4.dp),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                            )
+                        }
                     }
                 }
             }
@@ -327,6 +377,7 @@ private fun DashboardContent(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
+                    val rsvpEnabled = uiState.selectedPlayerId != null && uiState.gameNight.status == GameNightStatus.PLANNED
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -334,14 +385,14 @@ private fun DashboardContent(
                         Button(
                             onClick = onConfirmAttending,
                             modifier = Modifier.weight(1f),
-                            enabled = uiState.selectedPlayerId != null,
+                            enabled = rsvpEnabled,
                         ) {
                             Text("Zusagen")
                         }
                         Button(
                             onClick = onBeginStatusReport,
                             modifier = Modifier.weight(1f),
-                            enabled = uiState.selectedPlayerId != null,
+                            enabled = rsvpEnabled,
                         ) {
                             Text("Status melden")
                         }
@@ -350,7 +401,8 @@ private fun DashboardContent(
             }
         }
 
-        if (uiState.recentNotices.isNotEmpty()) {
+        val showCancelNotice = uiState.gameNight.status == GameNightStatus.CANCELLED
+        if (uiState.recentNotices.isNotEmpty() || showCancelNotice) {
             item {
                 Text(
                     text = "Aktuelle Meldungen",
@@ -358,6 +410,27 @@ private fun DashboardContent(
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold,
                 )
+            }
+            if (showCancelNotice) {
+                item {
+                    OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                text = "Der Spieleabend wurde abgesagt." +
+                                    (uiState.gameNight.cancelReason?.takeIf { it.isNotBlank() }?.let { " Grund: $it" } ?: ""),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            uiState.gameNight.cancelledAt?.let {
+                                Text(
+                                    text = it,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 2.dp),
+                                )
+                            }
+                        }
+                    }
+                }
             }
             items(uiState.recentNotices, key = { "notice_${it.playerId}" }) { notice ->
                 OutlinedCard(modifier = Modifier.fillMaxWidth()) {
@@ -518,6 +591,15 @@ private fun DashboardContent(
         )
     }
 
+    uiState.cancelGameNightEditor?.let { editor ->
+        CancelGameNightDialog(
+            editor = editor,
+            onReasonChange = onCancelReasonChange,
+            onConfirm = onConfirmCancelGameNight,
+            onDismiss = onDismissCancelGameNight,
+        )
+    }
+
     uiState.statusReportEditor?.let { editor ->
         StatusReportDialog(
             editor = editor,
@@ -614,6 +696,68 @@ private fun StatusReportDialog(
                     )
                 } else {
                     Text(if (editor.type == StatusReportType.DECLINED) "Absage bestätigen" else "Verspätung melden")
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !editor.isSaving,
+            ) {
+                Text("Abbrechen")
+            }
+        },
+    )
+}
+
+@Composable
+private fun CancelGameNightDialog(
+    editor: CancelGameNightEditorUiState,
+    onReasonChange: (String) -> Unit,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Spieleabend absagen") },
+        text = {
+            Column {
+                Text(
+                    text = "Möchtest du diesen Spieleabend wirklich absagen? Alle Mitglieder werden per Push-Nachricht informiert.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                OutlinedTextField(
+                    value = editor.reason,
+                    onValueChange = onReasonChange,
+                    label = { Text("Meldungstext (optional)") },
+                    placeholder = { Text("z. B. Gastgeber ist erkrankt") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp),
+                    singleLine = true,
+                )
+                editor.errorMessage?.let { error ->
+                    Text(
+                        text = error,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                enabled = !editor.isSaving,
+            ) {
+                if (editor.isSaving) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.height(16.dp),
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Text("Absagen bestätigen")
                 }
             }
         },

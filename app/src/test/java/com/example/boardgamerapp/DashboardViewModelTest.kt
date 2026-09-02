@@ -627,6 +627,99 @@ class DashboardViewModelTest {
         assertTrue(content.upcomingGameNights.first { it.groupId == "groupB" }.isSelected)
     }
 
+    @Test
+    fun `confirmCancelGameNight cancels game night, sends notification, and reloads content`() = runTest(dispatcher) {
+        val host = Player(1, "Max Mustermann", "Musterstraße 12", 1)
+        val gameNight = GameNight(
+            id = 42,
+            startsAt = LocalDateTime.of(2026, 9, 15, 18, 30),
+            hostId = host.id,
+            location = "Musterstraße 12",
+            status = GameNightStatus.PLANNED,
+        )
+
+        var cancelledGameNightId: Long? = null
+        var cancelledReason: String? = null
+        var notificationTitle: String? = null
+        var notificationMessage: String? = null
+        var currentStatus = GameNightStatus.PLANNED
+
+        val repo = object : GameNightRepository {
+            override suspend fun getUpcomingGameNight(): Result<UpcomingGameNight?> =
+                Result.success(UpcomingGameNight(gameNight.copy(status = currentStatus, cancelReason = cancelledReason), host))
+
+            override suspend fun cancelGameNight(gameNightId: Long, reason: String?): Result<GameNight> {
+                cancelledGameNightId = gameNightId
+                cancelledReason = reason
+                currentStatus = GameNightStatus.CANCELLED
+                return Result.success(gameNight.copy(status = GameNightStatus.CANCELLED, cancelReason = reason))
+            }
+        }
+
+        val viewModel = DashboardViewModel(
+            repository = repo,
+            onSendNotification = { title, message ->
+                notificationTitle = title
+                notificationMessage = message
+            },
+            ioDispatcher = dispatcher,
+        )
+        advanceUntilIdle()
+
+        viewModel.beginCancelGameNight()
+        assertNotNull((viewModel.uiState as DashboardUiState.Content).cancelGameNightEditor)
+
+        viewModel.updateCancelReason("Gastgeber erkrankt")
+        viewModel.confirmCancelGameNight()
+        advanceUntilIdle()
+
+        assertEquals(42L, cancelledGameNightId)
+        assertEquals("Gastgeber erkrankt", cancelledReason)
+        assertEquals("Spieleabend abgesagt", notificationTitle)
+        assertTrue(notificationMessage?.contains("Gastgeber erkrankt") == true)
+
+        val content = viewModel.uiState as DashboardUiState.Content
+        assertNull(content.cancelGameNightEditor)
+        assertEquals(
+            "Der Spieleabend wurde abgesagt. Teilnehmer wurden per Push-Nachricht informiert.",
+            content.message,
+        )
+        assertEquals(GameNightStatus.CANCELLED, content.gameNight.status)
+        assertEquals("Gastgeber erkrankt", content.gameNight.cancelReason)
+    }
+
+    @Test
+    fun `confirmCancelGameNight surfaces repository error`() = runTest(dispatcher) {
+        val host = Player(1, "Max Mustermann", "Musterstraße 12", 1)
+        val gameNight = GameNight(
+            id = 42,
+            startsAt = LocalDateTime.of(2026, 9, 15, 18, 30),
+            hostId = host.id,
+            location = "Musterstraße 12",
+            status = GameNightStatus.FINISHED,
+        )
+
+        val repo = object : GameNightRepository {
+            override suspend fun getUpcomingGameNight(): Result<UpcomingGameNight?> =
+                Result.success(UpcomingGameNight(gameNight, host))
+
+            override suspend fun cancelGameNight(gameNightId: Long, reason: String?): Result<GameNight> =
+                Result.failure(IllegalArgumentException("Nur geplante Spieleabende können abgesagt werden."))
+        }
+
+        val viewModel = DashboardViewModel(repository = repo, ioDispatcher = dispatcher)
+        advanceUntilIdle()
+
+        viewModel.beginCancelGameNight()
+        viewModel.confirmCancelGameNight()
+        advanceUntilIdle()
+
+        val content = viewModel.uiState as DashboardUiState.Content
+        assertNotNull(content.cancelGameNightEditor)
+        assertEquals("Nur geplante Spieleabende können abgesagt werden.", content.cancelGameNightEditor?.errorMessage)
+        assertEquals(false, content.cancelGameNightEditor?.isSaving)
+    }
+
     private fun repositoryReturning(
         result: Result<UpcomingGameNight?>,
     ): GameNightRepository = object : GameNightRepository {
