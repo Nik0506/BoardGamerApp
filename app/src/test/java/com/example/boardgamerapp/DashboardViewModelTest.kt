@@ -12,6 +12,7 @@ import com.example.boardgamerapp.domain.model.GameNightStatus
 import com.example.boardgamerapp.domain.model.Player
 import com.example.boardgamerapp.ui.dashboard.DashboardUiState
 import com.example.boardgamerapp.ui.dashboard.DashboardViewModel
+import com.example.boardgamerapp.ui.dashboard.StatusReportType
 import java.time.LocalDateTime
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -386,7 +387,7 @@ class DashboardViewModelTest {
     }
 
     @Test
-    fun `confirmDeclineAttendance saves DECLINED status with reason and triggers notification`() = runTest(dispatcher) {
+    fun `saveStatusReport saves DECLINED status with reason and triggers notification`() = runTest(dispatcher) {
         val host = Player(1, "Max Mustermann", "Musterstraße 12", 1)
         val gameNight = GameNight(
             id = 42,
@@ -445,19 +446,97 @@ class DashboardViewModelTest {
         )
         advanceUntilIdle()
 
-        viewModel.beginDeclineAttendance()
-        assertNotNull((viewModel.uiState as DashboardUiState.Content).declineEditor)
+        viewModel.beginStatusReport()
+        assertNotNull((viewModel.uiState as DashboardUiState.Content).statusReportEditor)
 
+        viewModel.selectStatusReportType(StatusReportType.DECLINED)
         viewModel.updateDeclineReason("Krank")
-        viewModel.confirmDeclineAttendance()
+        viewModel.saveStatusReport()
         advanceUntilIdle()
 
         assertEquals(AttendanceStatusType.DECLINED, savedStatus)
         assertEquals("Krank", savedReason)
         assertTrue(notificationSent)
         val content = viewModel.uiState as DashboardUiState.Content
-        assertNull(content.declineEditor)
+        assertNull(content.statusReportEditor)
         assertEquals("Deine Absage wurde gespeichert.", content.message)
+    }
+
+    @Test
+    fun `saveStatusReport saves LATE status with minutes and triggers notification`() = runTest(dispatcher) {
+        val host = Player(1, "Max Mustermann", "Musterstraße 12", 1)
+        val gameNight = GameNight(
+            id = 42,
+            startsAt = LocalDateTime.of(2026, 9, 15, 18, 30),
+            hostId = host.id,
+            location = "Musterstraße 12",
+            status = GameNightStatus.PLANNED,
+        )
+
+        var savedStatus: AttendanceStatusType? = null
+        var savedMinutes: Int? = null
+        var notificationSent = false
+
+        val attendanceRepo = object : AttendanceRepository {
+            override suspend fun getAttendances(): Result<List<GameNightAttendance>> = Result.success(emptyList())
+
+            override suspend fun setAttendance(
+                playerId: Long,
+                status: AttendanceStatusType,
+                minutesLate: Int?,
+                reason: String?,
+            ): Result<GameNightAttendance> {
+                savedStatus = status
+                savedMinutes = minutesLate
+                return Result.success(
+                    GameNightAttendance(
+                        id = playerId,
+                        playerId = playerId,
+                        gameNightId = 42,
+                        status = status,
+                        minutesLate = minutesLate,
+                    ),
+                )
+            }
+        }
+
+        val playerRepo = object : PlayerRepository {
+            override suspend fun getPlayers(): Result<List<Player>> = Result.success(listOf(host))
+            override suspend fun addPlayer(name: String, address: String): Result<Player> = error("")
+            override suspend fun updatePlayer(id: Long, name: String, address: String): Result<Player> = error("")
+            override suspend fun movePlayer(id: Long, direction: MoveDirection): Result<List<Player>> = error("")
+            override suspend fun createNextGameNight(
+                startsAt: LocalDateTime?,
+                preferredHostUid: String?,
+                memberOrderOverride: List<String>?,
+            ): Result<UpcomingGameNight> = error("")
+        }
+
+        val viewModel = DashboardViewModel(
+            repository = repositoryReturning(Result.success(UpcomingGameNight(gameNight, host))),
+            playerRepository = playerRepo,
+            attendanceRepository = attendanceRepo,
+            currentPlayerId = 1L,
+            onSendNotification = { _, _ -> notificationSent = true },
+            ioDispatcher = dispatcher,
+        )
+        advanceUntilIdle()
+
+        viewModel.beginStatusReport()
+        val editorAfterBegin = (viewModel.uiState as DashboardUiState.Content).statusReportEditor
+        assertNotNull(editorAfterBegin)
+        assertEquals(StatusReportType.LATE, editorAfterBegin?.type)
+
+        viewModel.selectLateNoticePreset(20)
+        viewModel.saveStatusReport()
+        advanceUntilIdle()
+
+        assertEquals(AttendanceStatusType.LATE, savedStatus)
+        assertEquals(20, savedMinutes)
+        assertTrue(notificationSent)
+        val content = viewModel.uiState as DashboardUiState.Content
+        assertNull(content.statusReportEditor)
+        assertEquals("Verspätungsmeldung wurde gespeichert.", content.message)
     }
 
     private fun repositoryReturning(

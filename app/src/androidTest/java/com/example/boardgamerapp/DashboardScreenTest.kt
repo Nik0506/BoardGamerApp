@@ -155,19 +155,24 @@ class DashboardScreenTest {
                         message = "Deine Zusage wurde gespeichert.",
                     )
                 },
-                onBeginDeclineAttendance = {
+                onBeginStatusReport = {
                     state = state.copy(
-                        declineEditor = com.example.boardgamerapp.ui.dashboard.AttendanceDeclineEditorUiState(),
+                        statusReportEditor = com.example.boardgamerapp.ui.dashboard.StatusReportEditorUiState(),
                     )
                 },
-                onConfirmDeclineAttendance = {
+                onSelectStatusReportType = { type ->
                     state = state.copy(
-                        declineEditor = null,
+                        statusReportEditor = state.statusReportEditor?.copy(type = type),
+                    )
+                },
+                onSaveStatusReport = {
+                    state = state.copy(
+                        statusReportEditor = null,
                         message = "Deine Absage wurde gespeichert.",
                     )
                 },
-                onDismissDeclineAttendance = {
-                    state = state.copy(declineEditor = null)
+                onDismissStatusReport = {
+                    state = state.copy(statusReportEditor = null)
                 },
             )
         }
@@ -176,15 +181,16 @@ class DashboardScreenTest {
         composeRule.onNodeWithText("Mein Teilnahmestatus").assertIsDisplayed()
         composeRule.onNodeWithText("Teilnahme der Gruppe").assertIsDisplayed()
         composeRule.onNodeWithText("Zusagen").assertIsDisplayed()
-        composeRule.onNodeWithText("Absagen").assertIsDisplayed()
+        composeRule.onNodeWithText("Status melden").assertIsDisplayed()
 
         // Click Zusagen
         composeRule.onNodeWithText("Zusagen").performClick()
         composeRule.onNodeWithText("Deine Zusage wurde gespeichert.").assertIsDisplayed()
 
-        // Click Absagen to open dialog
-        composeRule.onNodeWithText("Absagen").performClick()
-        composeRule.onNodeWithText("Absage zum Spieleabend").assertIsDisplayed()
+        // Click "Status melden" to open the unified dialog, then switch to "Absage"
+        composeRule.onNodeWithText("Status melden").performClick()
+        composeRule.onNodeWithText("Absage").performClick()
+        composeRule.onNodeWithText("Möchtest du deine Teilnahme für diesen Spieleabend absagen?").assertIsDisplayed()
         composeRule.onNodeWithText("Absage bestätigen").assertIsDisplayed()
         composeRule.onNodeWithText("Abbrechen").performClick()
     }

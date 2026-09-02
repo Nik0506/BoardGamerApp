@@ -49,6 +49,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.boardgamerapp.R
+import com.example.boardgamerapp.domain.model.AttendanceStatusType
 import com.example.boardgamerapp.ui.theme.BoardGamerAppTheme
 import java.time.Instant
 import java.time.LocalDate
@@ -69,15 +70,13 @@ fun DashboardScreen(
     onSaveEditedGameNight: () -> Unit = {},
     onDismissGameNightEditor: () -> Unit = {},
     onConfirmAttending: () -> Unit = {},
-    onBeginDeclineAttendance: () -> Unit = {},
+    onBeginStatusReport: () -> Unit = {},
+    onSelectStatusReportType: (StatusReportType) -> Unit = {},
     onDeclineReasonChange: (String) -> Unit = {},
-    onConfirmDeclineAttendance: () -> Unit = {},
-    onDismissDeclineAttendance: () -> Unit = {},
-    onAddLateNotice: () -> Unit = {},
     onSelectLateNoticePreset: (Int) -> Unit = {},
     onLateNoticeCustomMinutesChange: (String) -> Unit = {},
-    onSaveLateNotice: () -> Unit = {},
-    onDismissLateNoticeEditor: () -> Unit = {},
+    onSaveStatusReport: () -> Unit = {},
+    onDismissStatusReport: () -> Unit = {},
     onDismissMessage: () -> Unit = {},
 ) {
     when (uiState) {
@@ -130,15 +129,13 @@ fun DashboardScreen(
             onSaveEditedGameNight = onSaveEditedGameNight,
             onDismissGameNightEditor = onDismissGameNightEditor,
             onConfirmAttending = onConfirmAttending,
-            onBeginDeclineAttendance = onBeginDeclineAttendance,
+            onBeginStatusReport = onBeginStatusReport,
+            onSelectStatusReportType = onSelectStatusReportType,
             onDeclineReasonChange = onDeclineReasonChange,
-            onConfirmDeclineAttendance = onConfirmDeclineAttendance,
-            onDismissDeclineAttendance = onDismissDeclineAttendance,
-            onAddLateNotice = onAddLateNotice,
             onSelectLateNoticePreset = onSelectLateNoticePreset,
             onLateNoticeCustomMinutesChange = onLateNoticeCustomMinutesChange,
-            onSaveLateNotice = onSaveLateNotice,
-            onDismissLateNoticeEditor = onDismissLateNoticeEditor,
+            onSaveStatusReport = onSaveStatusReport,
+            onDismissStatusReport = onDismissStatusReport,
             onDismissMessage = onDismissMessage,
             modifier = modifier,
         )
@@ -155,15 +152,13 @@ private fun DashboardContent(
     onSaveEditedGameNight: () -> Unit,
     onDismissGameNightEditor: () -> Unit,
     onConfirmAttending: () -> Unit,
-    onBeginDeclineAttendance: () -> Unit,
+    onBeginStatusReport: () -> Unit,
+    onSelectStatusReportType: (StatusReportType) -> Unit,
     onDeclineReasonChange: (String) -> Unit,
-    onConfirmDeclineAttendance: () -> Unit,
-    onDismissDeclineAttendance: () -> Unit,
-    onAddLateNotice: () -> Unit,
     onSelectLateNoticePreset: (Int) -> Unit,
     onLateNoticeCustomMinutesChange: (String) -> Unit,
-    onSaveLateNotice: () -> Unit,
-    onDismissLateNoticeEditor: () -> Unit,
+    onSaveStatusReport: () -> Unit,
+    onDismissStatusReport: () -> Unit,
     onDismissMessage: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -273,10 +268,10 @@ private fun DashboardContent(
                     )
                     val currentAtt = uiState.currentAttendance
                     val statusDescription = when (currentAtt?.status) {
-                        com.example.boardgamerapp.domain.model.AttendanceStatusType.ATTENDING -> "Du hast zugesagt (pünktlich dabei)."
-                        com.example.boardgamerapp.domain.model.AttendanceStatusType.LATE -> "Du kommst ca. ${currentAtt.minutesLate ?: 10} Minuten später."
-                        com.example.boardgamerapp.domain.model.AttendanceStatusType.DECLINED -> "Du hast abgesagt." + (currentAtt.reason?.let { " ($it)" } ?: "")
-                        com.example.boardgamerapp.domain.model.AttendanceStatusType.PENDING, null -> "Du hast für diesen Abend noch nicht reagiert."
+                        AttendanceStatusType.ATTENDING -> "Du hast zugesagt (pünktlich dabei)."
+                        AttendanceStatusType.LATE -> "Du kommst ca. ${currentAtt.minutesLate ?: 10} Minuten später."
+                        AttendanceStatusType.DECLINED -> "Du hast abgesagt." + (currentAtt.reason?.let { " ($it)" } ?: "")
+                        AttendanceStatusType.PENDING, null -> "Du hast für diesen Abend noch nicht reagiert."
                     }
                     Text(
                         text = if (uiState.selectedPlayerId != null) statusDescription else "Dein Konto ist kein Mitglied der aktiven Gruppe.",
@@ -299,18 +294,45 @@ private fun DashboardContent(
                             Text("Zusagen")
                         }
                         Button(
-                            onClick = onAddLateNotice,
+                            onClick = onBeginStatusReport,
                             modifier = Modifier.weight(1f),
                             enabled = uiState.selectedPlayerId != null,
                         ) {
-                            Text("Verspäten")
+                            Text("Status melden")
                         }
-                        Button(
-                            onClick = onBeginDeclineAttendance,
-                            modifier = Modifier.weight(1f),
-                            enabled = uiState.selectedPlayerId != null,
-                        ) {
-                            Text("Absagen")
+                    }
+                }
+            }
+        }
+
+        if (uiState.recentNotices.isNotEmpty()) {
+            item {
+                Text(
+                    text = "Aktuelle Meldungen",
+                    modifier = Modifier.padding(top = 8.dp),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            items(uiState.recentNotices, key = { "notice_${it.playerId}" }) { notice ->
+                OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        val noticeText = when (notice.status) {
+                            AttendanceStatusType.LATE ->
+                                "${notice.playerName} verspätet sich um ${notice.minutesLate ?: 10} Minuten."
+                            AttendanceStatusType.DECLINED ->
+                                "${notice.playerName} hat abgesagt." +
+                                    (notice.reason?.takeIf { it.isNotBlank() }?.let { " Grund: $it" } ?: "")
+                            else -> ""
+                        }
+                        Text(text = noticeText, style = MaterialTheme.typography.bodyMedium)
+                        notice.updatedAt?.let {
+                            Text(
+                                text = it,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 2.dp),
+                            )
                         }
                     }
                 }
@@ -375,7 +397,7 @@ private fun DashboardContent(
                                     )
                                 }
                             }
-                            if (att.status == com.example.boardgamerapp.domain.model.AttendanceStatusType.DECLINED && !att.reason.isNullOrBlank()) {
+                            if (att.status == AttendanceStatusType.DECLINED && !att.reason.isNullOrBlank()) {
                                 Text(
                                     text = "Grund: ${att.reason}",
                                     style = MaterialTheme.typography.bodySmall,
@@ -394,22 +416,22 @@ private fun DashboardContent(
                         }
 
                         val badgeText = when (att.status) {
-                            com.example.boardgamerapp.domain.model.AttendanceStatusType.ATTENDING -> "✅ Dabei"
-                            com.example.boardgamerapp.domain.model.AttendanceStatusType.LATE -> "⏰ +${att.minutesLate ?: 10} Min"
-                            com.example.boardgamerapp.domain.model.AttendanceStatusType.DECLINED -> "❌ Abgesagt"
-                            com.example.boardgamerapp.domain.model.AttendanceStatusType.PENDING -> "⏳ Offen"
+                            AttendanceStatusType.ATTENDING -> "✅ Dabei"
+                            AttendanceStatusType.LATE -> "⏰ +${att.minutesLate ?: 10} Min"
+                            AttendanceStatusType.DECLINED -> "❌ Abgesagt"
+                            AttendanceStatusType.PENDING -> "⏳ Offen"
                         }
                         val badgeColor = when (att.status) {
-                            com.example.boardgamerapp.domain.model.AttendanceStatusType.ATTENDING -> MaterialTheme.colorScheme.primaryContainer
-                            com.example.boardgamerapp.domain.model.AttendanceStatusType.LATE -> MaterialTheme.colorScheme.tertiaryContainer
-                            com.example.boardgamerapp.domain.model.AttendanceStatusType.DECLINED -> MaterialTheme.colorScheme.errorContainer
-                            com.example.boardgamerapp.domain.model.AttendanceStatusType.PENDING -> MaterialTheme.colorScheme.surfaceVariant
+                            AttendanceStatusType.ATTENDING -> MaterialTheme.colorScheme.primaryContainer
+                            AttendanceStatusType.LATE -> MaterialTheme.colorScheme.tertiaryContainer
+                            AttendanceStatusType.DECLINED -> MaterialTheme.colorScheme.errorContainer
+                            AttendanceStatusType.PENDING -> MaterialTheme.colorScheme.surfaceVariant
                         }
                         val textColor = when (att.status) {
-                            com.example.boardgamerapp.domain.model.AttendanceStatusType.ATTENDING -> MaterialTheme.colorScheme.onPrimaryContainer
-                            com.example.boardgamerapp.domain.model.AttendanceStatusType.LATE -> MaterialTheme.colorScheme.onTertiaryContainer
-                            com.example.boardgamerapp.domain.model.AttendanceStatusType.DECLINED -> MaterialTheme.colorScheme.onErrorContainer
-                            com.example.boardgamerapp.domain.model.AttendanceStatusType.PENDING -> MaterialTheme.colorScheme.onSurfaceVariant
+                            AttendanceStatusType.ATTENDING -> MaterialTheme.colorScheme.onPrimaryContainer
+                            AttendanceStatusType.LATE -> MaterialTheme.colorScheme.onTertiaryContainer
+                            AttendanceStatusType.DECLINED -> MaterialTheme.colorScheme.onErrorContainer
+                            AttendanceStatusType.PENDING -> MaterialTheme.colorScheme.onSurfaceVariant
                         }
 
                         androidx.compose.material3.Surface(
@@ -451,65 +473,93 @@ private fun DashboardContent(
         )
     }
 
-    uiState.editor?.let { editor ->
-        LateNoticeDialog(
+    uiState.statusReportEditor?.let { editor ->
+        StatusReportDialog(
             editor = editor,
+            onSelectType = onSelectStatusReportType,
             onSelectPreset = onSelectLateNoticePreset,
             onCustomMinutesChange = onLateNoticeCustomMinutesChange,
-            onSave = onSaveLateNotice,
-            onDismiss = onDismissLateNoticeEditor,
-        )
-    }
-
-    uiState.declineEditor?.let { editor ->
-        DeclineGameNightDialog(
-            editor = editor,
             onReasonChange = onDeclineReasonChange,
-            onConfirm = onConfirmDeclineAttendance,
-            onDismiss = onDismissDeclineAttendance,
+            onSave = onSaveStatusReport,
+            onDismiss = onDismissStatusReport,
         )
     }
 }
 
 @Composable
-private fun DeclineGameNightDialog(
-    editor: AttendanceDeclineEditorUiState,
+private fun StatusReportDialog(
+    editor: StatusReportEditorUiState,
+    onSelectType: (StatusReportType) -> Unit,
+    onSelectPreset: (Int) -> Unit,
+    onCustomMinutesChange: (String) -> Unit,
     onReasonChange: (String) -> Unit,
-    onConfirm: () -> Unit,
+    onSave: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Absage zum Spieleabend") },
+        title = { Text("Status melden") },
         text = {
-            Column {
-                Text(
-                    text = "Möchtest du deine Teilnahme für diesen Spieleabend absagen?",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                OutlinedTextField(
-                    value = editor.reason,
-                    onValueChange = onReasonChange,
-                    label = { Text("Grund für die Absage (optional)") },
-                    placeholder = { Text("z. B. krank, Termin, unterwegs") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp),
-                    singleLine = true,
-                )
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Wähle die Art der Meldung.")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = editor.type == StatusReportType.LATE,
+                        onClick = { onSelectType(StatusReportType.LATE) },
+                        label = { Text("Verspätung") },
+                    )
+                    FilterChip(
+                        selected = editor.type == StatusReportType.DECLINED,
+                        onClick = { onSelectType(StatusReportType.DECLINED) },
+                        label = { Text("Absage") },
+                    )
+                }
+
+                when (editor.type) {
+                    StatusReportType.LATE -> {
+                        Text("Wie viele Minuten Verspätung sollen gemeldet werden?")
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf(10, 20, 30).forEach { minutes ->
+                                FilterChip(
+                                    selected = editor.selectedPreset == minutes,
+                                    onClick = { onSelectPreset(minutes) },
+                                    label = { Text("$minutes Min.") },
+                                )
+                            }
+                        }
+                        OutlinedTextField(
+                            value = editor.customMinutes,
+                            onValueChange = onCustomMinutesChange,
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Freie Minutenangabe") },
+                            singleLine = true,
+                        )
+                    }
+                    StatusReportType.DECLINED -> {
+                        Text("Möchtest du deine Teilnahme für diesen Spieleabend absagen?")
+                        OutlinedTextField(
+                            value = editor.reason,
+                            onValueChange = onReasonChange,
+                            label = { Text("Grund für die Absage (optional)") },
+                            placeholder = { Text("z. B. krank, Termin, unterwegs") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+                    }
+                }
+
                 editor.errorMessage?.let { error ->
                     Text(
                         text = error,
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(top = 8.dp),
                     )
                 }
             }
         },
         confirmButton = {
             Button(
-                onClick = onConfirm,
+                onClick = onSave,
                 enabled = !editor.isSaving,
             ) {
                 if (editor.isSaving) {
@@ -518,7 +568,7 @@ private fun DeclineGameNightDialog(
                         strokeWidth = 2.dp,
                     )
                 } else {
-                    Text("Absage bestätigen")
+                    Text(if (editor.type == StatusReportType.DECLINED) "Absage bestätigen" else "Verspätung melden")
                 }
             }
         },
@@ -709,54 +759,6 @@ private fun EditGameNightDialog(
             TextButton(onClick = onDismiss) {
                 Text("Abbrechen")
             }
-        },
-    )
-}
-
-@Composable
-private fun LateNoticeDialog(
-    editor: LateNoticeEditorUiState,
-    onSelectPreset: (Int) -> Unit,
-    onCustomMinutesChange: (String) -> Unit,
-    onSave: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Verspätung melden") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Wie viele Minuten Verspätung sollen lokal gespeichert werden?")
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(10, 20, 30).forEach { minutes ->
-                        FilterChip(
-                            selected = editor.selectedPreset == minutes,
-                            onClick = { onSelectPreset(minutes) },
-                            label = { Text("$minutes Min.") },
-                        )
-                    }
-                }
-                OutlinedTextField(
-                    value = editor.customMinutes,
-                    onValueChange = onCustomMinutesChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Freie Minutenangabe") },
-                    singleLine = true,
-                )
-                editor.errorMessage?.let {
-                    Text(
-                        text = it,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onSave) { Text("Speichern") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Abbrechen") }
         },
     )
 }
