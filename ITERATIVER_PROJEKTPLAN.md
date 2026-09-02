@@ -251,6 +251,15 @@ Ziel: Umfassende Tests der Daten- und Repository-Schicht nach der Migration von 
 - [x] [`FirebaseGameNightRepositoryTest.kt`](file:///home/red/Documents/BoardGamerApp/app/src/test/java/com/example/boardgamerapp/FirebaseGameNightRepositoryTest.kt): Tests für Berechtigungsprüfungen (`requireCurrentPlayer`), unautorisierte Zugriffe bei fehlender Authentifizierung und `addPlayer`-Validierung
 - [x] [`AuthAndGroupRepositoryTest.kt`](file:///home/red/Documents/BoardGamerApp/app/src/test/java/com/example/boardgamerapp/AuthAndGroupRepositoryTest.kt): Tests für `AuthRepository` (Status, Logout, Delegation) und `GroupRepository` (Auth-Validierung bei Gruppenerstellung)
 
+### MS4 – ViewModel-Test (#22)
+
+Ziel: Dedizierte, vollumfängliche ViewModel-Test-Suites für alle 4 ViewModels der Applikation (`DashboardViewModel`, `FoodViewModel`, `GamesViewModel`, `ReviewViewModel`) über alle Benutzeraktionen, Zustandsübergänge und Fehlerpfade.
+
+- [x] [`DashboardViewModelTest.kt`](file:///home/red/Documents/BoardGamerApp/app/src/test/java/com/example/boardgamerapp/DashboardViewModelTest.kt) (41 Tests): Initiales Laden, Empty-State, Terminauswahl, RSVP-Zusagen/Absagen, Termin-Editor, Gastgeber-Absage (Verschieben, Neuer Gastgeber, Absagen), Push-Benachrichtigungen, `planNextGameNight`, benutzerdefinierte Verspätungsminuten, `clearMessage` und Fehlerszenarien. Abdeckung: **83.4 %**.
+- [x] [`FoodViewModelTest.kt`](file:///home/red/Documents/BoardGamerApp/app/src/test/java/com/example/boardgamerapp/FoodViewModelTest.kt) (12 Tests): Initiales Laden, Restaurant-Editor (Rechteprüfung: nur Gastgeber darf bearbeiten), Bestell-Editor (Preisformatierung & Cent-Validierung, Prepopulation, Löschen), Essenskategorien anlegen/löschen, Essensstimme abgeben, Ergebnis-Texte (Führender, Gleichstand, leer), Erinnerung fehlender Wähler, ViewModel-Factory. Abdeckung: **97.1 %**.
+- [x] [`GamesViewModelTest.kt`](file:///home/red/Documents/BoardGamerApp/app/src/test/java/com/example/boardgamerapp/GamesViewModelTest.kt) (10 Tests): Spielvorschläge laden, Fehlerbehandlung bei Netzwerkausfall, Spielvorschlag einreichen (Gruppenmitgliedschafts- & Terminprüfung), Spielvorschlag löschen (Rechteprüfung: nur Ersteller), Stimmabgabe (`castVote`), dynamische Abstimmungsergebnisse, UI-Mapping mit `isSelected`, `clearMessage`, ViewModel-Factory. Abdeckung: **96.4 %**.
+- [x] [`ReviewViewModelTest.kt`](file:///home/red/Documents/BoardGamerApp/app/src/test/java/com/example/boardgamerapp/ReviewViewModelTest.kt) (8 Tests): Bewertungs-Übersicht, Empty- & Error-State, Spieleabend abschließen (`finishGameNight`), Bewertungsberechtigung (nur bei abgeschlossenem Abend und noch nicht bewertet), Sterne-/Punkte-Validierung (1–5 in allen Kategorien), Speichern von Reviews mit Erfolgsmeldung, `clearMessage`, ViewModel-Factory. Abdeckung: **94.6 %**.
+
 ## 9. Nächster Schritt
 
-Nach erfolgreicher Umsetzung von **MS4 – Repository-/DAO-Test** folgen: **ViewModel-Tests (#22)**, **Compose-UI-Tests (#23)**, **Manueller Test (#24)**, **Responsive Design (#41)** und **Firebase Rulings (#49)**.
+Nach erfolgreicher Umsetzung von **MS4 – ViewModel-Test** folgen: **Compose-UI-Tests (#23)**, **Manueller Test (#24)**, **Responsive Design (#41)** und **Firebase Rulings (#49)**.

@@ -827,6 +827,100 @@ class DashboardViewModelTest {
         assertEquals(DashboardUiState.Empty, viewModel.uiState)
     }
 
+    @Test
+    fun `planNextGameNight calls createNextGameNight on player repository`() = runTest(dispatcher) {
+        val host = Player(1, "Max Mustermann", "Musterstraße 12", 1)
+        var createCalled = false
+
+        val playerRepo = object : PlayerRepository {
+            override suspend fun getPlayers(): Result<List<Player>> = Result.success(listOf(host))
+            override suspend fun addPlayer(name: String, address: String) = error("")
+            override suspend fun updatePlayer(id: Long, name: String, address: String) = error("")
+            override suspend fun movePlayer(id: Long, direction: MoveDirection) = error("")
+            override suspend fun createNextGameNight(
+                startsAt: LocalDateTime?,
+                preferredHostUid: String?,
+                memberOrderOverride: List<String>?,
+            ): Result<UpcomingGameNight> {
+                createCalled = true
+                val newNight = GameNight(100L, LocalDateTime.now().plusDays(7), host.id, host.address, GameNightStatus.PLANNED)
+                return Result.success(UpcomingGameNight(newNight, host))
+            }
+        }
+
+        var currentNight: UpcomingGameNight? = null
+        val repo = object : GameNightRepository {
+            override suspend fun getUpcomingGameNight(): Result<UpcomingGameNight?> = Result.success(currentNight)
+        }
+
+        val viewModel = DashboardViewModel(
+            repository = repo,
+            playerRepository = playerRepo,
+            currentPlayerId = 1L,
+            ioDispatcher = dispatcher,
+        )
+        advanceUntilIdle()
+
+        viewModel.planNextGameNight()
+        advanceUntilIdle()
+
+        assertTrue(createCalled)
+    }
+
+    @Test
+    fun `updateLateNoticeCustomMinutes sets custom minutes and dismissStatusReport closes editor`() = runTest(dispatcher) {
+        val host = Player(1, "Max Mustermann", "Musterstraße 12", 1)
+        val gameNight = GameNight(1, LocalDateTime.now(), host.id, host.address, GameNightStatus.PLANNED)
+        val playerRepo = object : PlayerRepository {
+            override suspend fun getPlayers(): Result<List<Player>> = Result.success(listOf(host))
+            override suspend fun addPlayer(name: String, address: String) = error("")
+            override suspend fun updatePlayer(id: Long, name: String, address: String) = error("")
+            override suspend fun movePlayer(id: Long, direction: MoveDirection) = error("")
+            override suspend fun createNextGameNight(startsAt: LocalDateTime?, preferredHostUid: String?, memberOrderOverride: List<String>?) = error("")
+        }
+        val viewModel = DashboardViewModel(
+            repository = repositoryReturning(Result.success(UpcomingGameNight(gameNight, host))),
+            playerRepository = playerRepo,
+            currentPlayerId = 1L,
+            ioDispatcher = dispatcher,
+        )
+        advanceUntilIdle()
+
+        viewModel.beginStatusReport()
+        val content = viewModel.uiState as DashboardUiState.Content
+        assertNotNull(content.statusReportEditor)
+
+        viewModel.updateLateNoticeCustomMinutes("45")
+        val contentUpdated = viewModel.uiState as DashboardUiState.Content
+        assertEquals("45", contentUpdated.statusReportEditor?.customMinutes)
+
+        viewModel.dismissStatusReport()
+        val contentDismissed = viewModel.uiState as DashboardUiState.Content
+        assertNull(contentDismissed.statusReportEditor)
+    }
+
+    @Test
+    fun `dismissGameNightEditor closes game night editor and clearMessage resets message`() = runTest(dispatcher) {
+        val host = Player(1, "Max Mustermann", "Musterstraße 12", 1)
+        val gameNight = GameNight(1, LocalDateTime.now(), host.id, host.address, GameNightStatus.PLANNED)
+        val viewModel = DashboardViewModel(
+            repository = repositoryReturning(Result.success(UpcomingGameNight(gameNight, host))),
+            currentPlayerId = 1L,
+            ioDispatcher = dispatcher,
+        )
+        advanceUntilIdle()
+
+        viewModel.beginEditGameNight()
+        assertNotNull((viewModel.uiState as DashboardUiState.Content).gameNightEditor)
+
+        viewModel.dismissGameNightEditor()
+        assertNull((viewModel.uiState as DashboardUiState.Content).gameNightEditor)
+
+        viewModel.clearMessage()
+        assertNull((viewModel.uiState as DashboardUiState.Content).message)
+        assertNull((viewModel.uiState as DashboardUiState.Content).errorMessage)
+    }
+
     private fun repositoryReturning(
         result: Result<UpcomingGameNight?>,
     ): GameNightRepository = object : GameNightRepository {
