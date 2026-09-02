@@ -9,6 +9,7 @@ Würfelrunde organisiert gemeinsame Brettspielabende über mehrere Geräte. Anme
 - Aktive Gruppe auswählen und Mitgliederreihenfolge verwalten
 - Nächsten Spieleabend mit Dialog, Datum, Gastgeber-Auswahl und Reihenfolge-Logik planen
 - Bestehenden Spieleabend über Optionsmenü editieren (Datum, Uhrzeit, Gastgeber per Dropdown) inklusive Push-Benachrichtigung
+- Absage durch Gastgeber mit 3 Handlungsoptionen: alternativer Gastgeber, Spieleabend verschieben oder Spieleabend absagen
 - Echter Teilnahmestatus (RSVP): Zusagen, Verspäten und Absagen (mit optionalem Grund)
 - Gruppen-Statusübersicht im Dashboard mit Zähler-Zusammenfassung und Mitglieder-Badges
 - Live-Netzwerküberwachung mit automatischem Offline-Banner bei Verbindungsverlust

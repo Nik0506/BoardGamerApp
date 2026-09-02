@@ -186,6 +186,10 @@ private fun SignedInApp(userUid: String) {
                     onDeclineReasonChange = dashboardViewModel::updateDeclineReason,
                     onSelectLateNoticePreset = dashboardViewModel::selectLateNoticePreset,
                     onLateNoticeCustomMinutesChange = dashboardViewModel::updateLateNoticeCustomMinutes,
+                    onSelectHostDeclineOption = dashboardViewModel::selectHostDeclineOption,
+                    onHostDeclineNewHostChange = dashboardViewModel::updateHostDeclineNewHost,
+                    onHostDeclineRescheduleDateChange = dashboardViewModel::updateHostDeclineRescheduleDate,
+                    onHostDeclineRescheduleTimeChange = dashboardViewModel::updateHostDeclineRescheduleTime,
                     onSaveStatusReport = dashboardViewModel::saveStatusReport,
                     onDismissStatusReport = dashboardViewModel::dismissStatusReport,
                     onSelectGameNight = { groupId, gameNightDocId ->

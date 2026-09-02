@@ -13,6 +13,7 @@ import com.example.boardgamerapp.domain.model.GameNightStatus
 import com.example.boardgamerapp.domain.model.Player
 import com.example.boardgamerapp.ui.dashboard.DashboardUiState
 import com.example.boardgamerapp.ui.dashboard.DashboardViewModel
+import com.example.boardgamerapp.ui.dashboard.HostDeclineOption
 import com.example.boardgamerapp.ui.dashboard.StatusReportType
 import java.time.LocalDateTime
 import kotlinx.coroutines.Dispatchers
@@ -425,8 +426,9 @@ class DashboardViewModelTest {
             }
         }
 
+        val player = Player(2, "Erika Musterfrau", "Neustraße 5", 2)
         val playerRepo = object : PlayerRepository {
-            override suspend fun getPlayers(): Result<List<Player>> = Result.success(listOf(host))
+            override suspend fun getPlayers(): Result<List<Player>> = Result.success(listOf(host, player))
             override suspend fun addPlayer(name: String, address: String): Result<Player> = error("")
             override suspend fun updatePlayer(id: Long, name: String, address: String): Result<Player> = error("")
             override suspend fun movePlayer(id: Long, direction: MoveDirection): Result<List<Player>> = error("")
@@ -441,7 +443,7 @@ class DashboardViewModelTest {
             repository = repositoryReturning(Result.success(UpcomingGameNight(gameNight, host))),
             playerRepository = playerRepo,
             attendanceRepository = attendanceRepo,
-            currentPlayerId = 1L,
+            currentPlayerId = 2L,
             onSendNotification = { _, _ -> notificationSent = true },
             ioDispatcher = dispatcher,
         )
@@ -625,6 +627,204 @@ class DashboardViewModelTest {
         val content = viewModel.uiState as DashboardUiState.Content
         assertEquals("Brettspielnacht", content.gameNight.groupName)
         assertTrue(content.upcomingGameNights.first { it.groupId == "groupB" }.isSelected)
+    }
+
+    @Test
+    fun `host decline with REASSIGN_HOST reassigns host and triggers notification`() = runTest(dispatcher) {
+        val host = Player(1, "Max Mustermann", "Musterstraße 12", 1)
+        val player2 = Player(2, "Erika Musterfrau", "Neustraße 5", 2)
+        var currentGameNight = GameNight(
+            id = 42,
+            startsAt = LocalDateTime.of(2026, 9, 15, 18, 30),
+            hostId = host.id,
+            location = "Musterstraße 12",
+            status = GameNightStatus.PLANNED,
+        )
+        var currentHost = host
+        var reassignCalledWithHostId: Long? = null
+        var notificationTitle: String? = null
+        var notificationMessage: String? = null
+
+        val repo = object : GameNightRepository {
+            override suspend fun getUpcomingGameNight(): Result<UpcomingGameNight?> =
+                Result.success(UpcomingGameNight(currentGameNight, currentHost))
+
+            override suspend fun reassignHost(gameNightId: Long, newHostPlayerId: Long): Result<UpcomingGameNight> {
+                reassignCalledWithHostId = newHostPlayerId
+                currentHost = player2
+                currentGameNight = currentGameNight.copy(hostId = player2.id, location = player2.address)
+                return Result.success(UpcomingGameNight(currentGameNight, currentHost))
+            }
+        }
+
+        val playerRepo = object : PlayerRepository {
+            override suspend fun getPlayers(): Result<List<Player>> = Result.success(listOf(host, player2))
+            override suspend fun addPlayer(name: String, address: String): Result<Player> = error("")
+            override suspend fun updatePlayer(id: Long, name: String, address: String): Result<Player> = error("")
+            override suspend fun movePlayer(id: Long, direction: MoveDirection): Result<List<Player>> = error("")
+            override suspend fun createNextGameNight(
+                startsAt: LocalDateTime?,
+                preferredHostUid: String?,
+                memberOrderOverride: List<String>?,
+            ): Result<UpcomingGameNight> = error("")
+        }
+
+        val viewModel = DashboardViewModel(
+            repository = repo,
+            playerRepository = playerRepo,
+            currentPlayerId = 1L, // Current player is the host!
+            onSendNotification = { title, message ->
+                notificationTitle = title
+                notificationMessage = message
+            },
+            ioDispatcher = dispatcher,
+        )
+        advanceUntilIdle()
+
+        viewModel.beginStatusReport()
+        val contentBefore = viewModel.uiState as DashboardUiState.Content
+        assertTrue(contentBefore.isHost)
+
+        viewModel.selectStatusReportType(StatusReportType.DECLINED)
+        viewModel.selectHostDeclineOption(HostDeclineOption.REASSIGN_HOST)
+        viewModel.updateHostDeclineNewHost(2L)
+        viewModel.saveStatusReport()
+        advanceUntilIdle()
+
+        assertEquals(2L, reassignCalledWithHostId)
+        assertEquals("Neuer Gastgeber", notificationTitle)
+        assertTrue(notificationMessage?.contains("Erika Musterfrau") == true)
+        val contentAfter = viewModel.uiState as DashboardUiState.Content
+        assertEquals("Gastgeberschaft wurde erfolgreich an Erika Musterfrau übergeben.", contentAfter.message)
+        assertEquals("Erika Musterfrau", contentAfter.gameNight.hostName)
+    }
+
+    @Test
+    fun `host decline with RESCHEDULE reschedules game night and triggers notification`() = runTest(dispatcher) {
+        val host = Player(1, "Max Mustermann", "Musterstraße 12", 1)
+        var currentGameNight = GameNight(
+            id = 42,
+            startsAt = LocalDateTime.of(2026, 9, 15, 18, 30),
+            hostId = host.id,
+            location = "Musterstraße 12",
+            status = GameNightStatus.PLANNED,
+        )
+        var rescheduleCalledWith: LocalDateTime? = null
+        var notificationTitle: String? = null
+
+        val newDate = java.time.LocalDate.of(2026, 9, 22)
+        val newTime = java.time.LocalTime.of(20, 0)
+        val expectedStartsAt = LocalDateTime.of(newDate, newTime)
+
+        val repo = object : GameNightRepository {
+            override suspend fun getUpcomingGameNight(): Result<UpcomingGameNight?> =
+                Result.success(UpcomingGameNight(currentGameNight, host))
+
+            override suspend fun rescheduleGameNight(gameNightId: Long, startsAt: LocalDateTime): Result<UpcomingGameNight> {
+                rescheduleCalledWith = startsAt
+                currentGameNight = currentGameNight.copy(startsAt = startsAt)
+                return Result.success(UpcomingGameNight(currentGameNight, host))
+            }
+        }
+
+        val playerRepo = object : PlayerRepository {
+            override suspend fun getPlayers(): Result<List<Player>> = Result.success(listOf(host))
+            override suspend fun addPlayer(name: String, address: String): Result<Player> = error("")
+            override suspend fun updatePlayer(id: Long, name: String, address: String): Result<Player> = error("")
+            override suspend fun movePlayer(id: Long, direction: MoveDirection): Result<List<Player>> = error("")
+            override suspend fun createNextGameNight(
+                startsAt: LocalDateTime?,
+                preferredHostUid: String?,
+                memberOrderOverride: List<String>?,
+            ): Result<UpcomingGameNight> = error("")
+        }
+
+        val viewModel = DashboardViewModel(
+            repository = repo,
+            playerRepository = playerRepo,
+            currentPlayerId = 1L,
+            onSendNotification = { title, _ -> notificationTitle = title },
+            ioDispatcher = dispatcher,
+        )
+        advanceUntilIdle()
+
+        viewModel.beginStatusReport()
+        viewModel.selectStatusReportType(StatusReportType.DECLINED)
+        viewModel.selectHostDeclineOption(HostDeclineOption.RESCHEDULE)
+        viewModel.updateHostDeclineRescheduleDate(newDate)
+        viewModel.updateHostDeclineRescheduleTime(newTime)
+        viewModel.saveStatusReport()
+        advanceUntilIdle()
+
+        assertEquals(expectedStartsAt, rescheduleCalledWith)
+        assertEquals("Spieleabend verschoben", notificationTitle)
+        val content = viewModel.uiState as DashboardUiState.Content
+        assertEquals("Spieleabend wurde erfolgreich verschoben. Teilnehmer müssen neu abstimmen.", content.message)
+    }
+
+    @Test
+    fun `host decline with CANCEL cancels game night and triggers notification`() = runTest(dispatcher) {
+        val host = Player(1, "Max Mustermann", "Musterstraße 12", 1)
+        var currentGameNight: GameNight? = GameNight(
+            id = 42,
+            startsAt = LocalDateTime.of(2026, 9, 15, 18, 30),
+            hostId = host.id,
+            location = "Musterstraße 12",
+            status = GameNightStatus.PLANNED,
+        )
+        var cancelCalled = false
+        var cancelReason: String? = null
+        var notificationTitle: String? = null
+        var notificationMessage: String? = null
+
+        val repo = object : GameNightRepository {
+            override suspend fun getUpcomingGameNight(): Result<UpcomingGameNight?> =
+                Result.success(currentGameNight?.let { UpcomingGameNight(it, host) })
+
+            override suspend fun cancelGameNight(gameNightId: Long, reason: String?): Result<Unit> {
+                cancelCalled = true
+                cancelReason = reason
+                currentGameNight = null
+                return Result.success(Unit)
+            }
+        }
+
+        val playerRepo = object : PlayerRepository {
+            override suspend fun getPlayers(): Result<List<Player>> = Result.success(listOf(host))
+            override suspend fun addPlayer(name: String, address: String): Result<Player> = error("")
+            override suspend fun updatePlayer(id: Long, name: String, address: String): Result<Player> = error("")
+            override suspend fun movePlayer(id: Long, direction: MoveDirection): Result<List<Player>> = error("")
+            override suspend fun createNextGameNight(
+                startsAt: LocalDateTime?,
+                preferredHostUid: String?,
+                memberOrderOverride: List<String>?,
+            ): Result<UpcomingGameNight> = error("")
+        }
+
+        val viewModel = DashboardViewModel(
+            repository = repo,
+            playerRepository = playerRepo,
+            currentPlayerId = 1L,
+            onSendNotification = { title, message ->
+                notificationTitle = title
+                notificationMessage = message
+            },
+            ioDispatcher = dispatcher,
+        )
+        advanceUntilIdle()
+
+        viewModel.beginStatusReport()
+        viewModel.selectStatusReportType(StatusReportType.DECLINED)
+        viewModel.selectHostDeclineOption(HostDeclineOption.CANCEL)
+        viewModel.updateDeclineReason("Terminkonflikt")
+        viewModel.saveStatusReport()
+        advanceUntilIdle()
+
+        assertTrue(cancelCalled)
+        assertEquals("Terminkonflikt", cancelReason)
+        assertEquals("Spieleabend abgesagt", notificationTitle)
+        assertTrue(notificationMessage?.contains("Terminkonflikt") == true)
+        assertEquals(DashboardUiState.Empty, viewModel.uiState)
     }
 
     private fun repositoryReturning(

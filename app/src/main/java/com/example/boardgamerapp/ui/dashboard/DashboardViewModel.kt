@@ -265,19 +265,55 @@ class DashboardViewModel(
         }
     }
 
-    fun beginStatusReport() {
+    fun beginStatusReport(initialType: StatusReportType = StatusReportType.LATE) {
         val content = uiState as? DashboardUiState.Content ?: return
         if (content.selectedPlayerId == null) {
             uiState = content.copy(errorMessage = "Dein Konto ist kein Mitglied der aktiven Gruppe.")
             return
         }
-        uiState = content.copy(statusReportEditor = StatusReportEditorUiState(), message = null, errorMessage = null)
+        val defaultNewHostId = content.players.firstOrNull { it.id != content.gameNight.hostId }?.id ?: 0L
+        val defaultDate = content.gameNight.startsAt?.toLocalDate()?.plusWeeks(1) ?: java.time.LocalDate.now().plusWeeks(1)
+        val defaultTime = content.gameNight.startsAt?.toLocalTime() ?: java.time.LocalTime.of(19, 0)
+        uiState = content.copy(
+            statusReportEditor = StatusReportEditorUiState(
+                type = initialType,
+                selectedNewHostId = defaultNewHostId,
+                rescheduleDate = defaultDate,
+                rescheduleTime = defaultTime,
+            ),
+            message = null,
+            errorMessage = null,
+        )
     }
 
     fun selectStatusReportType(type: StatusReportType) {
         val content = uiState as? DashboardUiState.Content ?: return
         val editor = content.statusReportEditor ?: return
         uiState = content.copy(statusReportEditor = editor.copy(type = type, errorMessage = null))
+    }
+
+    fun selectHostDeclineOption(option: HostDeclineOption) {
+        val content = uiState as? DashboardUiState.Content ?: return
+        val editor = content.statusReportEditor ?: return
+        uiState = content.copy(statusReportEditor = editor.copy(hostDeclineOption = option, errorMessage = null))
+    }
+
+    fun updateHostDeclineNewHost(newHostId: Long) {
+        val content = uiState as? DashboardUiState.Content ?: return
+        val editor = content.statusReportEditor ?: return
+        uiState = content.copy(statusReportEditor = editor.copy(selectedNewHostId = newHostId, errorMessage = null))
+    }
+
+    fun updateHostDeclineRescheduleDate(date: java.time.LocalDate) {
+        val content = uiState as? DashboardUiState.Content ?: return
+        val editor = content.statusReportEditor ?: return
+        uiState = content.copy(statusReportEditor = editor.copy(rescheduleDate = date, errorMessage = null))
+    }
+
+    fun updateHostDeclineRescheduleTime(time: java.time.LocalTime) {
+        val content = uiState as? DashboardUiState.Content ?: return
+        val editor = content.statusReportEditor ?: return
+        uiState = content.copy(statusReportEditor = editor.copy(rescheduleTime = time, errorMessage = null))
     }
 
     fun selectLateNoticePreset(minutes: Int) {
@@ -364,36 +400,123 @@ class DashboardViewModel(
                 }
             }
             StatusReportType.DECLINED -> {
-                if (attendanceRepository == null) {
-                    uiState = content.copy(errorMessage = "Dein Konto ist kein Mitglied der aktiven Gruppe.")
-                    return
-                }
-                uiState = content.copy(statusReportEditor = editor.copy(isSaving = true, errorMessage = null))
-                viewModelScope.launch {
-                    withContext(ioDispatcher) {
-                        attendanceRepository.setAttendance(
-                            playerId = playerId,
-                            status = AttendanceStatusType.DECLINED,
-                            reason = editor.reason.ifBlank { null },
+                if (content.isHost) {
+                    when (editor.hostDeclineOption) {
+                        HostDeclineOption.REASSIGN_HOST -> {
+                            if (editor.selectedNewHostId == 0L) {
+                                uiState = content.copy(
+                                    statusReportEditor = editor.copy(errorMessage = "Bitte wähle einen neuen Gastgeber aus."),
+                                )
+                                return
+                            }
+                            val newHost = content.players.firstOrNull { it.id == editor.selectedNewHostId }
+                            val newHostName = newHost?.name ?: "Ein anderes Mitglied"
+                            uiState = content.copy(statusReportEditor = editor.copy(isSaving = true, errorMessage = null))
+                            viewModelScope.launch {
+                                withContext(ioDispatcher) {
+                                    repository.reassignHost(content.gameNight.id, editor.selectedNewHostId)
+                                }.fold(
+                                    onSuccess = {
+                                        onSendNotification?.invoke(
+                                            "Neuer Gastgeber",
+                                            "$playerName kann nicht hosten. $newHostName übernimmt als Gastgeber für den ${content.gameNight.date}.",
+                                        )
+                                        fetchGameNightContent(successMessage = "Gastgeberschaft wurde erfolgreich an $newHostName übergeben.")
+                                    },
+                                    onFailure = { error ->
+                                        uiState = content.copy(
+                                            statusReportEditor = editor.copy(
+                                                isSaving = false,
+                                                errorMessage = error.message ?: "Gastgeber konnte nicht übertragen werden.",
+                                            ),
+                                        )
+                                    },
+                                )
+                            }
+                        }
+                        HostDeclineOption.RESCHEDULE -> {
+                            val newStartsAt = java.time.LocalDateTime.of(editor.rescheduleDate, editor.rescheduleTime)
+                            uiState = content.copy(statusReportEditor = editor.copy(isSaving = true, errorMessage = null))
+                            viewModelScope.launch {
+                                withContext(ioDispatcher) {
+                                    repository.rescheduleGameNight(content.gameNight.id, newStartsAt)
+                                }.fold(
+                                    onSuccess = {
+                                        onSendNotification?.invoke(
+                                            "Spieleabend verschoben",
+                                            "Der Spieleabend wurde auf ${newStartsAt.format(dateFormatter)}, ${newStartsAt.format(timeFormatter)} verschoben.",
+                                        )
+                                        fetchGameNightContent(successMessage = "Spieleabend wurde erfolgreich verschoben. Teilnehmer müssen neu abstimmen.")
+                                    },
+                                    onFailure = { error ->
+                                        uiState = content.copy(
+                                            statusReportEditor = editor.copy(
+                                                isSaving = false,
+                                                errorMessage = error.message ?: "Spieleabend konnte nicht verschoben werden.",
+                                            ),
+                                        )
+                                    },
+                                )
+                            }
+                        }
+                        HostDeclineOption.CANCEL -> {
+                            uiState = content.copy(statusReportEditor = editor.copy(isSaving = true, errorMessage = null))
+                            viewModelScope.launch {
+                                withContext(ioDispatcher) {
+                                    repository.cancelGameNight(content.gameNight.id, editor.reason.ifBlank { null })
+                                }.fold(
+                                    onSuccess = {
+                                        val reasonSuffix = if (editor.reason.isNotBlank()) " Grund: ${editor.reason}" else ""
+                                        onSendNotification?.invoke(
+                                            "Spieleabend abgesagt",
+                                            "Der Spieleabend am ${content.gameNight.date} wurde von $playerName abgesagt.$reasonSuffix",
+                                        )
+                                        fetchGameNightContent(successMessage = "Der Spieleabend wurde abgesagt.")
+                                    },
+                                    onFailure = { error ->
+                                        uiState = content.copy(
+                                            statusReportEditor = editor.copy(
+                                                isSaving = false,
+                                                errorMessage = error.message ?: "Spieleabend konnte nicht abgesagt werden.",
+                                            ),
+                                        )
+                                    },
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    if (attendanceRepository == null) {
+                        uiState = content.copy(errorMessage = "Dein Konto ist kein Mitglied der aktiven Gruppe.")
+                        return
+                    }
+                    uiState = content.copy(statusReportEditor = editor.copy(isSaving = true, errorMessage = null))
+                    viewModelScope.launch {
+                        withContext(ioDispatcher) {
+                            attendanceRepository.setAttendance(
+                                playerId = playerId,
+                                status = AttendanceStatusType.DECLINED,
+                                reason = editor.reason.ifBlank { null },
+                            )
+                        }.fold(
+                            onSuccess = {
+                                val reasonSuffix = if (editor.reason.isNotBlank()) " Grund: ${editor.reason}" else ""
+                                onSendNotification?.invoke(
+                                    "Absage zum Spieleabend",
+                                    "$playerName hat für den Spieleabend abgesagt.$reasonSuffix",
+                                )
+                                fetchGameNightContent(successMessage = "Deine Absage wurde gespeichert.")
+                            },
+                            onFailure = { error ->
+                                uiState = content.copy(
+                                    statusReportEditor = editor.copy(
+                                        isSaving = false,
+                                        errorMessage = error.message ?: "Die Absage konnte nicht gespeichert werden.",
+                                    ),
+                                )
+                            },
                         )
-                    }.fold(
-                        onSuccess = {
-                            val reasonSuffix = if (editor.reason.isNotBlank()) " Grund: ${editor.reason}" else ""
-                            onSendNotification?.invoke(
-                                "Absage zum Spieleabend",
-                                "$playerName hat für den Spieleabend abgesagt.$reasonSuffix",
-                            )
-                            fetchGameNightContent(successMessage = "Deine Absage wurde gespeichert.")
-                        },
-                        onFailure = { error ->
-                            uiState = content.copy(
-                                statusReportEditor = editor.copy(
-                                    isSaving = false,
-                                    errorMessage = error.message ?: "Die Absage konnte nicht gespeichert werden.",
-                                ),
-                            )
-                        },
-                    )
+                    }
                 }
             }
         }

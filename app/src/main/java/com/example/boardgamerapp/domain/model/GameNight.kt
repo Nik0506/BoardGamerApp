@@ -15,4 +15,5 @@ enum class GameNightStatus {
     PLANNED,
     ACTIVE,
     FINISHED,
+    CANCELLED,
 }
