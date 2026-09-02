@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -67,7 +68,7 @@ fun ProfileScreen(
                 style = MaterialTheme.typography.headlineMedium,
             )
 
-            Card(modifier = Modifier.fillMaxWidth()) {
+            Card(modifier = Modifier.fillMaxWidth().widthIn(max = 600.dp)) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -105,7 +106,7 @@ fun ProfileScreen(
                     FirebaseAuth.getInstance().signOut()
                     onSignOut()
                 },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().widthIn(max = 600.dp),
             ) {
                 Text("Abmelden")
             }

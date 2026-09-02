@@ -271,6 +271,22 @@ Ziel: Umfassende Compose-UI-Tests (`createComposeRule`) für alle Screens und in
 - [x] [`ReviewScreenTest.kt`](file:///home/red/Documents/BoardGamerApp/app/src/androidTest/java/com/example/boardgamerapp/ReviewScreenTest.kt): Spieleabend abschließen und Bewertungsdialog mit Sternen/Punkten öffnen.
 - [x] [`AuthStateRestorationTest.kt`](file:///home/red/Documents/BoardGamerApp/app/src/androidTest/java/com/example/boardgamerapp/AuthStateRestorationTest.kt): State-Restoration / Rotationstest für Texteingabefelder.
 
+### MS4 – Responsive Design (#41)
+
+Ziel: Umfassende Überprüfung und Optimierung aller Screens und Dialoge hinsichtlich variabler Auflösungen (Compact, Medium, Expanded) und Bildschirmausrichtungen (Portrait, Landscape).
+
+- [x] **Adaptive Navigation**: `NavigationSuiteScaffold` schaltet auf großen Bildschirmen / Querformat automatisch von der unteren Navigationsleiste auf eine seitliche `NavigationRail` um.
+- [x] **Scrollfähigkeit bei geringer vertikaler Höhe (Landscape / geöffnete Bildschirmtastatur)**:
+  - Dialoge in [`DashboardScreen.kt`](file:///home/red/Documents/BoardGamerApp/app/src/main/java/com/example/boardgamerapp/ui/dashboard/DashboardScreen.kt) (`StatusReportDialog`, `EditGameNightDialog`) mit `Modifier.verticalScroll(rememberScrollState())` ausgestattet, um Clipping und Nicht-Erreichbarkeit von Aktions-Buttons im Querformat zu verhindern.
+  - Dialoge in [`FoodScreen.kt`](file:///home/red/Documents/BoardGamerApp/app/src/main/java/com/example/boardgamerapp/ui/food/FoodScreen.kt) (`categoryEditor`, `restaurantEditor`, `orderEditor`) scrollbar gemacht.
+  - Dialog `SuggestionEditorDialog` in [`GamesScreen.kt`](file:///home/red/Documents/BoardGamerApp/app/src/main/java/com/example/boardgamerapp/ui/games/GamesScreen.kt) scrollbar gemacht.
+  - Dialog `ReviewDialog` in [`ReviewScreen.kt`](file:///home/red/Documents/BoardGamerApp/app/src/main/java/com/example/boardgamerapp/ui/review/ReviewScreen.kt) scrollbar gemacht.
+  - Dialog `PlayerEditorDialog` in [`PlayersScreen.kt`](file:///home/red/Documents/BoardGamerApp/app/src/main/java/com/example/boardgamerapp/ui/players/PlayersScreen.kt) scrollbar gemacht.
+  - Dialog `Spieleabend planen` in [`GroupManagementScreen.kt`](file:///home/red/Documents/BoardGamerApp/app/src/main/java/com/example/boardgamerapp/ui/group/GroupManagementScreen.kt) scrollbar gemacht.
+- [x] **Breitenbeschränkung auf Tablets / breiten Displays**:
+  - In [`AuthScreen.kt`](file:///home/red/Documents/BoardGamerApp/app/src/main/java/com/example/boardgamerapp/ui/auth/AuthScreen.kt) und [`ProfileScreen.kt`](file:///home/red/Documents/BoardGamerApp/app/src/main/java/com/example/boardgamerapp/ui/profile/ProfileScreen.kt) wurden Formular-Karten und Buttons mit `Modifier.widthIn(max = ...)` versehen, um unschönes horizontales Strecken auf Tablets zu vermeiden.
+- [x] **Instrumentierte Responsive-Tests**: [`ResponsiveDesignTest.kt`](file:///home/red/Documents/BoardGamerApp/app/src/androidTest/java/com/example/boardgamerapp/ResponsiveDesignTest.kt) (9 Tests) prüft alle Screens und Dialoge explizit unter Smartphone-Querformat (780 x 360 dp) sowie Tablet-Auflösungen (1280 x 800 dp).
+
 ## 9. Nächster Schritt
 
-Nach erfolgreicher Umsetzung von **MS4 – Compose-UI-Test** folgen: **Manueller Test (#24)**, **Responsive Design (#41)** und **Firebase Rulings (#49)**.
+Nach erfolgreicher Umsetzung von **MS4 – Responsive Design** folgen: **Manueller Test (#24)** und **Firebase Rulings (#49)**.
