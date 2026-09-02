@@ -11,6 +11,7 @@ import com.example.boardgamerapp.data.repository.ReviewRepository
 import com.example.boardgamerapp.domain.model.GameNightStatus
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -19,17 +20,18 @@ class ReviewViewModel(
     private val reviewRepository: ReviewRepository,
     private val playerRepository: PlayerRepository,
     private val currentPlayerId: Long,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
     var uiState: ReviewUiState by mutableStateOf(ReviewUiState.Loading)
         private set
 
     init { load() }
 
-    fun load() {
+    fun load(successMessage: String? = null) {
         uiState = ReviewUiState.Loading
         viewModelScope.launch {
-        val snapshotResult = withContext(Dispatchers.IO) { reviewRepository.getReviewSnapshot() }
-        val playersResult = withContext(Dispatchers.IO) { playerRepository.getPlayers() }
+        val snapshotResult = withContext(ioDispatcher) { reviewRepository.getReviewSnapshot() }
+        val playersResult = withContext(ioDispatcher) { playerRepository.getPlayers() }
         val error = snapshotResult.exceptionOrNull() ?: playersResult.exceptionOrNull()
         if (error != null) {
             uiState = ReviewUiState.Error(error.message ?: "Bewertungen konnten nicht geladen werden.")
@@ -58,6 +60,7 @@ class ReviewViewModel(
             averages = snapshot.averages?.let {
                 ReviewAveragesUiModel(format(it.host), format(it.food), format(it.evening))
             },
+            message = successMessage,
         )
         }
     }
@@ -65,10 +68,9 @@ class ReviewViewModel(
     fun finishGameNight() {
         val content = uiState as? ReviewUiState.Content ?: return
         viewModelScope.launch {
-        withContext(Dispatchers.IO) { reviewRepository.finishGameNight(content.gameNightId) }.fold(
+        withContext(ioDispatcher) { reviewRepository.finishGameNight(content.gameNightId) }.fold(
             onSuccess = {
-                load()
-                uiState = (uiState as ReviewUiState.Content).copy(message = "Spieleabend abgeschlossen.")
+                load(successMessage = "Spieleabend abgeschlossen.")
             },
             onFailure = { uiState = content.copy(errorMessage = it.message) },
         )
@@ -95,13 +97,12 @@ class ReviewViewModel(
             return
         }
         viewModelScope.launch {
-        withContext(Dispatchers.IO) { reviewRepository.submitReview(
+        withContext(ioDispatcher) { reviewRepository.submitReview(
             playerId, content.gameNightId, editor.hostRating, editor.foodRating,
             editor.eveningRating, editor.comment,
         ) }.fold(
             onSuccess = {
-                load()
-                uiState = (uiState as ReviewUiState.Content).copy(message = "Bewertung gespeichert.")
+                load(successMessage = "Bewertung gespeichert.")
             },
             onFailure = { uiState = content.copy(editor = editor.copy(errorMessage = it.message)) },
         )

@@ -227,6 +227,20 @@ Zusätzlich sind Bildschirmdrehung, fehlende Netzwerkverbindung und ein zweites 
 - Stabile numerische IDs werden teilweise aus Firebase-Dokument-IDs abgeleitet; langfristig sollten Domain-IDs als Strings modelliert werden.
 - Direkte Pushes zwischen Geräten im Hintergrund erfordern serverseitige Auslösung (z. B. Firebase Cloud Functions); clientseitige und In-App-Benachrichtigungen sind vollständig aktiv.
 
+### MS4 – Unit-Tests (#20)
+
+Ziel: Umfassende Unit-Test-Abdeckung aller Domain-Modelle, Datenstrukturen, Berechnungslogiken, Zustandsübergänge und Validierungen.
+
+- [x] JaCoCo-Testabdeckungsbericht in Gradle integriert (`createDebugUnitTestCoverageReport`)
+- [x] Domain-Modelle getestet (`Attendance`, `GameNight`, `Player`, `BoardGame`, `FoodCategory`, `Restaurant`, `FoodOrder`, `Review`, `Vote`, `LateNotice`)
+- [x] Datenmodelle & Firestore-Serialisierung getestet (`UserProfile`, `Group`, `GroupMember`, `VotingSnapshot`, `FoodVotingSnapshot`, `OrderingSnapshot`, `ReviewSnapshot`)
+- [x] Dashboard-Logik getestet (`isHost`, `currentAttendance`, Zähler-Aggregationen, `recentNotices`-Sortierung)
+- [x] Essens-Logik & Berechnungen getestet (Gleichstand, Führender, Leerstand, Cent-/Preiseingabe-Validierung, Erinnerung fehlender Wähler)
+- [x] Spiele-Logik & Abstimmungen getestet (Ergebnis-Text, UI-Mapping mit `isSelected`, Gruppenberechtigungen, Stimmabgabe)
+- [x] Bewertungs-Logik getestet (Durchschnittswerte-Formatierung, Punkte-Validierung 1–5, Spieleabend-Abschluss)
+- [x] `CoroutineDispatcher`-Injection in allen ViewModels für deterministisches Testen ohne blockierende Threads
+- [x] Behebung eines latenten `ClassCastException`-Fehlers in `ReviewViewModel`
+
 ## 9. Nächster Schritt
 
-Nach erfolgreicher Umsetzung von **MS2 – Iteration 5** folgt das Testen im Mehrgeräte-Szenario und der Ausbau weiterführender Gruppenfeatures.
+Nach erfolgreicher Umsetzung von **MS4 – Unit-Tests** folgen die weiteren Test-Schritte: **Repository-Tests (#21)**, **ViewModel-Tests (#22)**, **Compose-UI-Tests (#23)** und **Responsive Design (#41)**.
