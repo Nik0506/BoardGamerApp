@@ -27,23 +27,19 @@ data class DashboardAttendanceUiModel(
     val minutesLate: Int? = null,
     val reason: String? = null,
     val updatedAt: String? = null,
+    val updatedAtRaw: LocalDateTime? = null,
     val isCurrentPlayer: Boolean = false,
 )
 
-data class LateNoticeUiModel(
-    val id: Long,
-    val playerName: String,
-    val minutes: Int,
-    val createdAt: String,
-)
+enum class StatusReportType {
+    LATE,
+    DECLINED,
+}
 
-data class LateNoticeEditorUiState(
+data class StatusReportEditorUiState(
+    val type: StatusReportType = StatusReportType.LATE,
     val selectedPreset: Int? = 10,
     val customMinutes: String = "",
-    val errorMessage: String? = null,
-)
-
-data class AttendanceDeclineEditorUiState(
     val reason: String = "",
     val isSaving: Boolean = false,
     val errorMessage: String? = null,
@@ -66,9 +62,7 @@ sealed interface DashboardUiState {
         val players: List<DashboardPlayerUiModel> = emptyList(),
         val selectedPlayerId: Long? = null,
         val attendances: List<DashboardAttendanceUiModel> = emptyList(),
-        val lateNotices: List<LateNoticeUiModel> = emptyList(),
-        val editor: LateNoticeEditorUiState? = null,
-        val declineEditor: AttendanceDeclineEditorUiState? = null,
+        val statusReportEditor: StatusReportEditorUiState? = null,
         val gameNightEditor: GameNightEditorUiState? = null,
         val message: String? = null,
         val errorMessage: String? = null,
@@ -83,6 +77,10 @@ sealed interface DashboardUiState {
             get() = attendances.count { it.status == AttendanceStatusType.DECLINED }
         val pendingCount: Int
             get() = attendances.count { it.status == AttendanceStatusType.PENDING }
+        val recentNotices: List<DashboardAttendanceUiModel>
+            get() = attendances
+                .filter { it.status == AttendanceStatusType.LATE || it.status == AttendanceStatusType.DECLINED }
+                .sortedByDescending { it.updatedAtRaw }
     }
     data class Error(val message: String) : DashboardUiState
 }

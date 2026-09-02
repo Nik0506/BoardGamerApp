@@ -14,7 +14,6 @@ import com.example.boardgamerapp.data.repository.PlayerRepository
 import com.example.boardgamerapp.data.repository.UpcomingGameNight
 import com.example.boardgamerapp.domain.model.AttendanceStatusType
 import com.example.boardgamerapp.domain.model.GameNightAttendance
-import com.example.boardgamerapp.domain.model.LateNotice
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
@@ -62,9 +61,8 @@ class DashboardViewModel(
         }
 
         val playersResult = withContext(ioDispatcher) { resolvePlayersForDashboard() }
-        val noticesResult = withContext(ioDispatcher) { lateNoticeRepository?.getLateNotices() ?: Result.success(emptyList()) }
         val attendancesResult = withContext(ioDispatcher) { attendanceRepository?.getAttendances() ?: Result.success(emptyList()) }
-        val error = playersResult.exceptionOrNull() ?: noticesResult.exceptionOrNull() ?: attendancesResult.exceptionOrNull()
+        val error = playersResult.exceptionOrNull() ?: attendancesResult.exceptionOrNull()
         if (error != null) {
             uiState = DashboardUiState.Error(
                 message = error.message ?: "Die Daten für den Spieleabend konnten nicht geladen werden.",
@@ -84,6 +82,7 @@ class DashboardViewModel(
                 minutesLate = att?.minutesLate,
                 reason = att?.reason,
                 updatedAt = att?.updatedAt?.format(noticeDateFormatter),
+                updatedAtRaw = att?.updatedAt,
                 isCurrentPlayer = (player.id == currentPlayerId),
             )
         }
@@ -93,7 +92,6 @@ class DashboardViewModel(
             players = players,
             selectedPlayerId = currentPlayerId?.takeIf { id -> players.any { it.id == id } },
             attendances = attendanceUiModels,
-            lateNotices = noticesResult.getOrThrow().map { it.toUiModel(players) },
             message = successMessage,
         )
     }
@@ -125,73 +123,6 @@ class DashboardViewModel(
                 },
             )
         }
-    }
-
-    fun beginDeclineAttendance() {
-        val content = uiState as? DashboardUiState.Content ?: return
-        if (content.selectedPlayerId == null) {
-            uiState = content.copy(errorMessage = "Dein Konto ist kein Mitglied der aktiven Gruppe.")
-            return
-        }
-        uiState = content.copy(
-            declineEditor = AttendanceDeclineEditorUiState(),
-            message = null,
-            errorMessage = null,
-        )
-    }
-
-    fun updateDeclineReason(reason: String) {
-        val content = uiState as? DashboardUiState.Content ?: return
-        uiState = content.copy(
-            declineEditor = (content.declineEditor ?: AttendanceDeclineEditorUiState()).copy(
-                reason = reason,
-                errorMessage = null,
-            ),
-        )
-    }
-
-    fun confirmDeclineAttendance() {
-        val content = uiState as? DashboardUiState.Content ?: return
-        val editor = content.declineEditor ?: return
-        val playerId = content.selectedPlayerId
-        if (playerId == null || attendanceRepository == null) {
-            uiState = content.copy(errorMessage = "Dein Konto ist kein Mitglied der aktiven Gruppe.")
-            return
-        }
-        val playerName = content.players.firstOrNull { it.id == playerId }?.name ?: "Ein Mitglied"
-        uiState = content.copy(declineEditor = editor.copy(isSaving = true, errorMessage = null))
-
-        viewModelScope.launch {
-            withContext(ioDispatcher) {
-                attendanceRepository.setAttendance(
-                    playerId = playerId,
-                    status = AttendanceStatusType.DECLINED,
-                    reason = editor.reason.ifBlank { null },
-                )
-            }.fold(
-                onSuccess = {
-                    val reasonSuffix = if (editor.reason.isNotBlank()) " Grund: ${editor.reason}" else ""
-                    onSendNotification?.invoke(
-                        "Absage zum Spieleabend",
-                        "$playerName hat für den Spieleabend abgesagt.$reasonSuffix",
-                    )
-                    fetchGameNightContent(successMessage = "Deine Absage wurde gespeichert.")
-                },
-                onFailure = { error ->
-                    uiState = content.copy(
-                        declineEditor = editor.copy(
-                            isSaving = false,
-                            errorMessage = error.message ?: "Die Absage konnte nicht gespeichert werden.",
-                        ),
-                    )
-                },
-            )
-        }
-    }
-
-    fun dismissDeclineAttendance() {
-        val content = uiState as? DashboardUiState.Content ?: return
-        uiState = content.copy(declineEditor = null)
     }
 
     fun beginEditGameNight() {
@@ -285,20 +216,26 @@ class DashboardViewModel(
         }
     }
 
-    fun beginLateNotice() {
+    fun beginStatusReport() {
         val content = uiState as? DashboardUiState.Content ?: return
         if (content.selectedPlayerId == null) {
             uiState = content.copy(errorMessage = "Dein Konto ist kein Mitglied der aktiven Gruppe.")
             return
         }
-        uiState = content.copy(editor = LateNoticeEditorUiState(), message = null, errorMessage = null)
+        uiState = content.copy(statusReportEditor = StatusReportEditorUiState(), message = null, errorMessage = null)
+    }
+
+    fun selectStatusReportType(type: StatusReportType) {
+        val content = uiState as? DashboardUiState.Content ?: return
+        val editor = content.statusReportEditor ?: return
+        uiState = content.copy(statusReportEditor = editor.copy(type = type, errorMessage = null))
     }
 
     fun selectLateNoticePreset(minutes: Int) {
         val content = uiState as? DashboardUiState.Content ?: return
         if (minutes in listOf(10, 20, 30)) {
             uiState = content.copy(
-                editor = (content.editor ?: LateNoticeEditorUiState()).copy(
+                statusReportEditor = (content.statusReportEditor ?: StatusReportEditorUiState()).copy(
                     selectedPreset = minutes,
                     errorMessage = null,
                 ),
@@ -309,7 +246,7 @@ class DashboardViewModel(
     fun updateLateNoticeCustomMinutes(minutes: String) {
         val content = uiState as? DashboardUiState.Content ?: return
         uiState = content.copy(
-            editor = (content.editor ?: LateNoticeEditorUiState()).copy(
+            statusReportEditor = (content.statusReportEditor ?: StatusReportEditorUiState()).copy(
                 selectedPreset = null,
                 customMinutes = minutes,
                 errorMessage = null,
@@ -317,54 +254,105 @@ class DashboardViewModel(
         )
     }
 
-    fun saveLateNotice() {
+    fun updateDeclineReason(reason: String) {
         val content = uiState as? DashboardUiState.Content ?: return
-        val editor = content.editor ?: return
-        val minutes = editor.selectedPreset ?: editor.customMinutes.toIntOrNull()
-        if (minutes == null || minutes <= 0) {
-            uiState = content.copy(
-                editor = editor.copy(errorMessage = "Gib eine positive Minutenzahl ein."),
-            )
-            return
-        }
+        uiState = content.copy(
+            statusReportEditor = (content.statusReportEditor ?: StatusReportEditorUiState()).copy(
+                reason = reason,
+                errorMessage = null,
+            ),
+        )
+    }
+
+    fun saveStatusReport() {
+        val content = uiState as? DashboardUiState.Content ?: return
+        val editor = content.statusReportEditor ?: return
         val playerId = content.selectedPlayerId
-        if (playerId == null || (lateNoticeRepository == null && attendanceRepository == null)) {
+        if (playerId == null) {
             uiState = content.copy(errorMessage = "Dein Konto ist kein Mitglied der aktiven Gruppe.")
             return
         }
         val playerName = content.players.firstOrNull { it.id == playerId }?.name ?: "Ein Mitglied"
 
-        viewModelScope.launch {
-            withContext(ioDispatcher) {
-                if (lateNoticeRepository != null) {
-                    lateNoticeRepository.addLateNotice(playerId, minutes)
-                } else {
-                    attendanceRepository?.setAttendance(playerId, AttendanceStatusType.LATE, minutesLate = minutes)
-                        ?: Result.failure(IllegalStateException("Repository nicht verfügbar"))
+        when (editor.type) {
+            StatusReportType.LATE -> {
+                val minutes = editor.selectedPreset ?: editor.customMinutes.toIntOrNull()
+                if (minutes == null || minutes <= 0) {
+                    uiState = content.copy(statusReportEditor = editor.copy(errorMessage = "Gib eine positive Minutenzahl ein."))
+                    return
                 }
-            }.fold(
-                onSuccess = {
-                    onSendNotification?.invoke(
-                        "Verspätung gemeldet",
-                        "$playerName verspätet sich um $minutes Minuten.",
+                if (lateNoticeRepository == null && attendanceRepository == null) {
+                    uiState = content.copy(errorMessage = "Dein Konto ist kein Mitglied der aktiven Gruppe.")
+                    return
+                }
+                uiState = content.copy(statusReportEditor = editor.copy(isSaving = true, errorMessage = null))
+                viewModelScope.launch {
+                    withContext(ioDispatcher) {
+                        if (lateNoticeRepository != null) {
+                            lateNoticeRepository.addLateNotice(playerId, minutes)
+                        } else {
+                            attendanceRepository?.setAttendance(playerId, AttendanceStatusType.LATE, minutesLate = minutes)
+                                ?: Result.failure(IllegalStateException("Repository nicht verfügbar"))
+                        }
+                    }.fold(
+                        onSuccess = {
+                            onSendNotification?.invoke(
+                                "Verspätung gemeldet",
+                                "$playerName verspätet sich um $minutes Minuten.",
+                            )
+                            fetchGameNightContent(successMessage = "Verspätungsmeldung wurde gespeichert.")
+                        },
+                        onFailure = { error ->
+                            uiState = content.copy(
+                                statusReportEditor = editor.copy(
+                                    isSaving = false,
+                                    errorMessage = error.message
+                                        ?: "Die Verspätungsmeldung konnte nicht gespeichert werden.",
+                                ),
+                            )
+                        },
                     )
-                    fetchGameNightContent(successMessage = "Verspätungsmeldung wurde gespeichert.")
-                },
-                onFailure = { error ->
-                    uiState = content.copy(
-                        editor = editor.copy(
-                            errorMessage = error.message
-                                ?: "Die Verspätungsmeldung konnte nicht gespeichert werden.",
-                        ),
+                }
+            }
+            StatusReportType.DECLINED -> {
+                if (attendanceRepository == null) {
+                    uiState = content.copy(errorMessage = "Dein Konto ist kein Mitglied der aktiven Gruppe.")
+                    return
+                }
+                uiState = content.copy(statusReportEditor = editor.copy(isSaving = true, errorMessage = null))
+                viewModelScope.launch {
+                    withContext(ioDispatcher) {
+                        attendanceRepository.setAttendance(
+                            playerId = playerId,
+                            status = AttendanceStatusType.DECLINED,
+                            reason = editor.reason.ifBlank { null },
+                        )
+                    }.fold(
+                        onSuccess = {
+                            val reasonSuffix = if (editor.reason.isNotBlank()) " Grund: ${editor.reason}" else ""
+                            onSendNotification?.invoke(
+                                "Absage zum Spieleabend",
+                                "$playerName hat für den Spieleabend abgesagt.$reasonSuffix",
+                            )
+                            fetchGameNightContent(successMessage = "Deine Absage wurde gespeichert.")
+                        },
+                        onFailure = { error ->
+                            uiState = content.copy(
+                                statusReportEditor = editor.copy(
+                                    isSaving = false,
+                                    errorMessage = error.message ?: "Die Absage konnte nicht gespeichert werden.",
+                                ),
+                            )
+                        },
                     )
-                },
-            )
+                }
+            }
         }
     }
 
-    fun dismissLateNoticeEditor() {
+    fun dismissStatusReport() {
         val content = uiState as? DashboardUiState.Content ?: return
-        uiState = content.copy(editor = null)
+        uiState = content.copy(statusReportEditor = null)
     }
 
     fun clearMessage() {
@@ -386,13 +374,6 @@ class DashboardViewModel(
         hostId = host.id,
         location = gameNight.location,
         startsAt = gameNight.startsAt,
-    )
-
-    private fun LateNotice.toUiModel(players: List<DashboardPlayerUiModel>) = LateNoticeUiModel(
-        id = id,
-        playerName = players.firstOrNull { it.id == playerId }?.name ?: "Unbekannter Spieler",
-        minutes = minutes,
-        createdAt = createdAt.format(noticeDateFormatter),
     )
 
     companion object {
