@@ -260,6 +260,17 @@ Ziel: Dedizierte, vollumfängliche ViewModel-Test-Suites für alle 4 ViewModels 
 - [x] [`GamesViewModelTest.kt`](file:///home/red/Documents/BoardGamerApp/app/src/test/java/com/example/boardgamerapp/GamesViewModelTest.kt) (10 Tests): Spielvorschläge laden, Fehlerbehandlung bei Netzwerkausfall, Spielvorschlag einreichen (Gruppenmitgliedschafts- & Terminprüfung), Spielvorschlag löschen (Rechteprüfung: nur Ersteller), Stimmabgabe (`castVote`), dynamische Abstimmungsergebnisse, UI-Mapping mit `isSelected`, `clearMessage`, ViewModel-Factory. Abdeckung: **96.4 %**.
 - [x] [`ReviewViewModelTest.kt`](file:///home/red/Documents/BoardGamerApp/app/src/test/java/com/example/boardgamerapp/ReviewViewModelTest.kt) (8 Tests): Bewertungs-Übersicht, Empty- & Error-State, Spieleabend abschließen (`finishGameNight`), Bewertungsberechtigung (nur bei abgeschlossenem Abend und noch nicht bewertet), Sterne-/Punkte-Validierung (1–5 in allen Kategorien), Speichern von Reviews mit Erfolgsmeldung, `clearMessage`, ViewModel-Factory. Abdeckung: **94.6 %**.
 
+### MS4 – Compose-UI-Test (#23)
+
+Ziel: Umfassende Compose-UI-Tests (`createComposeRule`) für alle Screens und interaktiven UI-Komponenten der Applikation (`DashboardScreen`, `FoodScreen`, `GamesScreen`, `PlayersScreen`, `ReviewScreen`, `AuthStateRestoration`).
+
+- [x] [`FoodScreenTest.kt`](file:///home/red/Documents/BoardGamerApp/app/src/androidTest/java/com/example/boardgamerapp/FoodScreenTest.kt) (4 UI-Tests): Essensabstimmung & Stimmabgabe, Kategorie-Hinzufügen-Dialog & Texterfassung, Restaurant-Verwaltung (Rechteprüfung: nur Gastgeber darf bearbeiten), Bestell-Editor & Löschen eigener Bestellungen.
+- [x] [`GamesScreenTest.kt`](file:///home/red/Documents/BoardGamerApp/app/src/androidTest/java/com/example/boardgamerapp/GamesScreenTest.kt) (4 UI-Tests): Vorschlagsliste & Stimmabgabe, Spiel-vorschlagen-Dialog & Texteingabe, Löschberechtigung (nur Ersteller sieht „Löschen“-Button), Empty-State-Anzeige bei fehlenden Vorschlägen.
+- [x] [`PlayersScreenTest.kt`](file:///home/red/Documents/BoardGamerApp/app/src/androidTest/java/com/example/boardgamerapp/PlayersScreenTest.kt) (4 UI-Tests): Spieler- und Gruppenübersicht mit Gruppen-ID und Kopier-Button, Reihenfolgen-Verschiebung (Up/Down-Events), Spieler-Editor-Dialog mit Speichern, Button „Nächsten Spieleabend planen“.
+- [x] [`DashboardScreenTest.kt`](file:///home/red/Documents/BoardGamerApp/app/src/androidTest/java/com/example/boardgamerapp/DashboardScreenTest.kt) (5 UI-Tests): Optionsmenü & Termin-Editier-Dialog, RSVP-Zusagen & Status melden, 3-Optionen-Gastgeberabsage, Terminwechsler (`GameNightPicker`) & Empty-State-Planungsaktion.
+- [x] [`ReviewScreenTest.kt`](file:///home/red/Documents/BoardGamerApp/app/src/androidTest/java/com/example/boardgamerapp/ReviewScreenTest.kt): Spieleabend abschließen und Bewertungsdialog mit Sternen/Punkten öffnen.
+- [x] [`AuthStateRestorationTest.kt`](file:///home/red/Documents/BoardGamerApp/app/src/androidTest/java/com/example/boardgamerapp/AuthStateRestorationTest.kt): State-Restoration / Rotationstest für Texteingabefelder.
+
 ## 9. Nächster Schritt
 
-Nach erfolgreicher Umsetzung von **MS4 – ViewModel-Test** folgen: **Compose-UI-Tests (#23)**, **Manueller Test (#24)**, **Responsive Design (#41)** und **Firebase Rulings (#49)**.
+Nach erfolgreicher Umsetzung von **MS4 – Compose-UI-Test** folgen: **Manueller Test (#24)**, **Responsive Design (#41)** und **Firebase Rulings (#49)**.
