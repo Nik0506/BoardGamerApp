@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -30,6 +31,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -102,69 +105,25 @@ fun AuthScreen(
                         style = MaterialTheme.typography.headlineSmall,
                     )
 
-                    if (mode == AuthMode.REGISTER) {
-                        OutlinedTextField(
-                            value = displayName,
-                            onValueChange = { displayName = it },
-                            label = { Text("Name") },
-                            modifier = Modifier.fillMaxWidth(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                        )
+                    val submitAuth = {
+                        val trimmedEmail = email.trim()
+                        val trimmedName = displayName.trim()
+                        val trimmedAddress = address.trim()
 
-                        OutlinedTextField(
-                            value = address,
-                            onValueChange = { address = it },
-                            label = { Text("Adresse") },
-                            modifier = Modifier.fillMaxWidth(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                        )
-                    }
-
-                    OutlinedTextField(
-                        value = email,
-                        onValueChange = { email = it },
-                        label = { Text("E-Mail") },
-                        modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                    )
-
-                    OutlinedTextField(
-                        value = password,
-                        onValueChange = { password = it },
-                        label = { Text("Passwort") },
-                        modifier = Modifier.fillMaxWidth(),
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    )
-
-                    if (errorText != null) {
-                        Text(
-                            text = errorText ?: "",
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-
-                    Button(
-                        onClick = {
-                            if (email.isBlank() || password.isBlank()) {
-                                errorText = "E-Mail und Passwort dürfen nicht leer sein."
-                                return@Button
-                            }
-                            if (mode == AuthMode.REGISTER && displayName.isBlank()) {
-                                errorText = "Bitte gib einen Namen ein."
-                                return@Button
-                            }
-
+                        if (trimmedEmail.isBlank() || password.isBlank()) {
+                            errorText = "E-Mail und Passwort dürfen nicht leer sein."
+                        } else if (mode == AuthMode.REGISTER && trimmedName.isBlank()) {
+                            errorText = "Bitte gib einen Namen ein."
+                        } else {
                             loading = true
                             errorText = null
 
                             CoroutineScope(Dispatchers.Main).launch {
                                 val result = withContext(Dispatchers.IO) {
                                     if (mode == AuthMode.LOGIN) {
-                                        authRepository.login(email, password)
+                                        authRepository.login(trimmedEmail, password)
                                     } else {
-                                        authRepository.register(email, password, displayName, address)
+                                        authRepository.register(trimmedEmail, password, trimmedName, trimmedAddress)
                                     }
                                 }
 
@@ -176,15 +135,85 @@ fun AuthScreen(
                                     onFailure = {
                                         loading = false
                                         errorText = it.message ?: "Authentifizierung fehlgeschlagen."
-                                    }
+                                    },
                                 )
                             }
-                        },
+                        }
+                    }
+
+                    if (mode == AuthMode.REGISTER) {
+                        OutlinedTextField(
+                            value = displayName,
+                            onValueChange = { displayName = it },
+                            label = { Text("Name") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Text,
+                                capitalization = KeyboardCapitalization.Words,
+                                imeAction = ImeAction.Next,
+                            ),
+                        )
+
+                        OutlinedTextField(
+                            value = address,
+                            onValueChange = { address = it },
+                            label = { Text("Adresse") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Text,
+                                capitalization = KeyboardCapitalization.Sentences,
+                                imeAction = ImeAction.Next,
+                            ),
+                        )
+                    }
+
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        label = { Text("E-Mail") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Email,
+                            capitalization = KeyboardCapitalization.None,
+                            autoCorrectEnabled = false,
+                            imeAction = ImeAction.Next,
+                        ),
+                    )
+
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        label = { Text("Passwort") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            capitalization = KeyboardCapitalization.None,
+                            autoCorrectEnabled = false,
+                            imeAction = ImeAction.Done,
+                        ),
+                        keyboardActions = KeyboardActions(onDone = { submitAuth() }),
+                    )
+
+                    if (errorText != null) {
+                        Text(
+                            text = errorText ?: "",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+
+                    Button(
+                        onClick = { submitAuth() },
                         enabled = !loading,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(
-                            if (loading) "Bitte warten..." else if (mode == AuthMode.LOGIN) "Anmelden" else "Registrieren"
+                            if (loading) "Bitte warten..." else if (mode == AuthMode.LOGIN) "Anmelden" else "Registrieren",
                         )
                     }
 
