@@ -304,7 +304,25 @@ Ziel: Absicherung der Firestore-Datenbank gegen unbefugte Lese- und Schreibzugri
   - `orders`: Prüfung auf nicht-negative Preise (`priceCents >= 0`).
   - `reviews`: Validierung, dass alle Ratings (`hostRating`, `foodRating`, `eveningRating`) im gültigen Wertebereich von 1 bis 5 Sternen liegen.
 - [x] **Vorbereitung für Manuellen Test (#24)**: Die Rulings definieren die serverseitigen Erwartungswerte für Mehrbenutzertests (z. B. Zugriffsverweigerung mit `PERMISSION_DENIED` bei Zugriff auf fremde Gruppen oder unbefugtes Löschen).
+- [x] **Manueller Testplan**: [`MANUELLER_TESTPLAN.md`](file:///home/red/Documents/BoardGamerApp/MANUELLER_TESTPLAN.md) mit 20 strukturierten Testfällen für reale Endgeräte erstellt.
 
-## 9. Nächster Schritt
+---
 
-Nach erfolgreicher Umsetzung von **MS4 – Firebase Rulings (#49)** folgt als abschließender Issue von Meilenstein 4: **Manueller Test (#24)**.
+## 9. Meilenstein 5: Bugfixes
+
+### MS5 – Sonderzeichen bei der Registrierung (#58)
+
+Ziel: Reibungslose Erfassung von Umlauten, Sonderzeichen (wie `@`, `.`, `+`, `-`, `ß`) in allen Eingabefeldern der Authentifizierung und Behebung von Eingabebehinderungen.
+
+- [x] **Feldkonfiguration & IME-Aktionen**:
+  - `singleLine = true` auf allen Eingabefeldern (`displayName`, `address`, `email`, `password`) in [`AuthScreen.kt`](file:///home/red/Documents/BoardGamerApp/app/src/main/java/com/example/boardgamerapp/ui/auth/AuthScreen.kt) gesetzt, um unerwünschte Zeilenumbrüche zu verhindern.
+  - Deaktivierung störender Autokorrektur (`autoCorrectEnabled = false`) und Autokapitalisierung (`capitalization = KeyboardCapitalization.None`) für E-Mail und Passwort.
+  - `ImeAction.Next` und `ImeAction.Done` (inkl. `KeyboardActions` zum direkten Absenden per Tastatur-Enter) eingerichtet.
+  - Automatisches Trimmen (`.trim()`) von E-Mail, Name und Adresse beim Absenden, um unbemerkte Leerzeichen beim Einfügen zu bereinigen.
+- [x] **Automatisierter UI-Test**:
+  - [`AuthStateRestorationTest.kt`](file:///home/red/Documents/BoardGamerApp/app/src/androidTest/java/com/example/boardgamerapp/AuthStateRestorationTest.kt): Neuer Testfall `emailAndRegistrationFields_acceptUmlautsAndSpecialCharacters()` verifiziert die Eingabe von E-Mail-Adressen mit `@` und Sonderzeichen sowie Namen und Adressen mit Umlauten (`ä`, `ö`, `ü`, `ß`).
+- [x] **Dokumentation für Emulator-Umgebungen**: Analyse des Hardware-Tastatur-Verhaltens im Android-Emulator (Layout-Mapping bei deutschen Host-Tastaturen für `AltGr + Q`).
+
+## 10. Nächster Schritt
+
+Fortführung des manuellen Endgerät-Tests anhand von [`MANUELLER_TESTPLAN.md`](file:///home/red/Documents/BoardGamerApp/MANUELLER_TESTPLAN.md) für **#24**.
