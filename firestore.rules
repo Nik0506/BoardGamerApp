@@ -2,15 +2,21 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
+    // ==========================================
+    // Helper Functions
+    // ==========================================
+
+    // Check if the request is from an authenticated user
     function isAuthenticated() {
       return request.auth != null;
     }
 
+    // Check if the authenticated user matches the given userId
     function isUser(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    // Check if the user is a member of the group
     function isGroupMember(groupId) {
       return isAuthenticated() && (
         exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) ||
@@ -18,62 +24,138 @@ service cloud.firestore {
       );
     }
 
-    // User profiles
+    // Check if the user is the creator or admin of the group
+    function isGroupAdmin(groupId) {
+      return isAuthenticated() && (
+        get(/databases/$(database)/documents/groups/$(groupId)).data.createdBy == request.auth.uid ||
+        get(/databases/$(database)/documents/groups/$(groupId)).data.adminUid == request.auth.uid ||
+        get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role == "ADMIN"
+      );
+    }
+
+    // ==========================================
+    // User Profiles
+    // ==========================================
     match /users/{userId} {
+      // Authenticated users can view user profiles (required for group member listings)
       allow read: if isAuthenticated();
+
+      // Only the user themselves can create, update, or delete their profile
       allow create, update, delete: if isUser(userId);
 
-      match /groups/{groupId} {
+      // Subcollection of groups the user belongs to
+      match /groups/{userGroupId} {
         allow read, write: if isUser(userId);
       }
     }
 
-    // Groups
+    // ==========================================
+    // Groups Collection
+    // ==========================================
     match /groups/{groupId} {
+      // Authenticated users can read group details (e.g. to join by group ID)
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isGroupMember(groupId) || isAuthenticated();
 
-      // Group members
+      // Any authenticated user can create a new group
+      allow create: if isAuthenticated() && (
+        !('createdBy' in request.resource.data) || request.resource.data.createdBy == request.auth.uid
+      );
+
+      // Only group members can update group information (memberOrder, activeGameNightDocId, etc.)
+      allow update: if isGroupMember(groupId);
+
+      // Only the group creator or admin can delete the group
+      allow delete: if isGroupAdmin(groupId);
+
+      // ==========================================
+      // Group Members Subcollection
+      // ==========================================
       match /members/{memberId} {
+        // Authenticated users can read member lists
         allow read: if isAuthenticated();
-        allow create, update, delete: if isUser(memberId) || isGroupMember(groupId);
+
+        // A user can join by adding their own member document, or an existing member can add
+        allow create: if isUser(memberId) || isGroupMember(groupId);
+
+        // A member can update their own profile, or an admin can update roles/order
+        allow update: if isUser(memberId) || isGroupMember(groupId);
+
+        // A user can leave the group (delete self) or group admin can remove a member
+        allow delete: if isUser(memberId) || isGroupAdmin(groupId);
       }
 
-      // Game nights and subcollections
+      // ==========================================
+      // Game Nights and Associated Subcollections
+      // ==========================================
       match /gameNights/{gameNightId} {
-        allow read, write: if isGroupMember(groupId);
+        // Only members of the group can read and participate in game nights
+        allow read: if isGroupMember(groupId);
+        allow create, update: if isGroupMember(groupId);
+        // Only group members/admins can delete a game night
+        allow delete: if isGroupMember(groupId);
 
+        // --- Game Suggestions ---
         match /suggestions/{suggestionId} {
-          allow read, write: if isGroupMember(groupId);
+          allow read: if isGroupMember(groupId);
+          allow create, update: if isGroupMember(groupId);
+          allow delete: if isGroupMember(groupId);
         }
 
+        // --- Board Game Votes ---
         match /votes/{voteId} {
-          allow read, write: if isGroupMember(groupId);
+          allow read: if isGroupMember(groupId);
+          allow create, update: if isGroupMember(groupId);
+          allow delete: if isGroupMember(groupId);
         }
 
+        // --- Late Notices ---
         match /lateNotices/{noticeId} {
-          allow read, write: if isGroupMember(groupId);
+          allow read: if isGroupMember(groupId);
+          allow create, update: if isGroupMember(groupId);
+          allow delete: if isGroupMember(groupId);
         }
 
+        // --- Attendance Status ---
         match /attendance/{attendanceId} {
-          allow read, write: if isGroupMember(groupId);
+          allow read: if isGroupMember(groupId);
+          allow create, update: if isGroupMember(groupId);
+          allow delete: if isGroupMember(groupId);
         }
 
+        // --- Food Categories ---
         match /foodCategories/{categoryId} {
-          allow read, write: if isGroupMember(groupId);
+          allow read: if isGroupMember(groupId);
+          allow create, update: if isGroupMember(groupId);
+          allow delete: if isGroupMember(groupId);
         }
 
+        // --- Food Category Votes ---
         match /foodVotes/{voteId} {
-          allow read, write: if isGroupMember(groupId);
+          allow read: if isGroupMember(groupId);
+          allow create, update: if isGroupMember(groupId);
+          allow delete: if isGroupMember(groupId);
         }
 
+        // --- Food Orders ---
         match /orders/{orderId} {
-          allow read, write: if isGroupMember(groupId);
+          allow read: if isGroupMember(groupId);
+          // Orders must have non-negative price
+          allow create, update: if isGroupMember(groupId) && (
+            !('priceCents' in request.resource.data) || request.resource.data.priceCents >= 0
+          );
+          allow delete: if isGroupMember(groupId);
         }
 
+        // --- Game Night Reviews ---
         match /reviews/{reviewId} {
-          allow read, write: if isGroupMember(groupId);
+          allow read: if isGroupMember(groupId);
+          // Rating values must be between 1 and 5
+          allow create, update: if isGroupMember(groupId) && (
+            (!('hostRating' in request.resource.data) || (request.resource.data.hostRating >= 1 && request.resource.data.hostRating <= 5)) &&
+            (!('foodRating' in request.resource.data) || (request.resource.data.foodRating >= 1 && request.resource.data.foodRating <= 5)) &&
+            (!('eveningRating' in request.resource.data) || (request.resource.data.eveningRating >= 1 && request.resource.data.eveningRating <= 5))
+          );
+          allow delete: if isGroupAdmin(groupId);
         }
       }
     }
