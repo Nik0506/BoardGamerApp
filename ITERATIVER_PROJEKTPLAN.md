@@ -287,6 +287,24 @@ Ziel: Umfassende Überprüfung und Optimierung aller Screens und Dialoge hinsich
   - In [`AuthScreen.kt`](file:///home/red/Documents/BoardGamerApp/app/src/main/java/com/example/boardgamerapp/ui/auth/AuthScreen.kt) und [`ProfileScreen.kt`](file:///home/red/Documents/BoardGamerApp/app/src/main/java/com/example/boardgamerapp/ui/profile/ProfileScreen.kt) wurden Formular-Karten und Buttons mit `Modifier.widthIn(max = ...)` versehen, um unschönes horizontales Strecken auf Tablets zu vermeiden.
 - [x] **Instrumentierte Responsive-Tests**: [`ResponsiveDesignTest.kt`](file:///home/red/Documents/BoardGamerApp/app/src/androidTest/java/com/example/boardgamerapp/ResponsiveDesignTest.kt) (9 Tests) prüft alle Screens und Dialoge explizit unter Smartphone-Querformat (780 x 360 dp) sowie Tablet-Auflösungen (1280 x 800 dp).
 
+### MS4 – Firebase Rulings (#49)
+
+Ziel: Absicherung der Firestore-Datenbank gegen unbefugte Lese- und Schreibzugriffe, Durchsetzung von Gruppenisolation, rollenbasierter Zugriffskontrolle (Host/Admin vs. Mitglied) und Datenvalidierung.
+
+- [x] **Infrastruktur im Repository**: [`firestore.rules`](file:///home/red/Documents/BoardGamerApp/firestore.rules) als versionierte *Infrastructure-as-Code*-Datei im Root-Verzeichnis gepflegt.
+- [x] **Rollen- und Rechte-Definitionen**:
+  - `isAuthenticated()`: Blockiert sämtliche unauthentifizierten Requests.
+  - `isUser(userId)`: Erlaubt Änderungen am eigenen Profil (`/users/{userId}`) und privaten Gruppenreferenzen nur dem Eigentümer.
+  - `isGroupMember(groupId)`: Garantiert strenge Mandantentrennung/Gruppenisolation. Ein Benutzer kann Spieleabende, Essensabstimmungen, Spielvorschläge und Bestellungen nur lesen und bearbeiten, wenn er nachweislich Mitglied der Gruppe ist.
+  - `isGroupAdmin(groupId)`: Nur Gruppen-Ersteller/Admins können eine Gruppe löschen oder Mitglieder entfernen.
+- [x] **Schließen von Sicherheitslücken**:
+  - Behebung der kritischen Schwachstelle bei `groups/{groupId}`, bei der zuvor jeder authentifizierte Nutzer fremde Gruppen manipulieren oder löschen konnte (`|| isAuthenticated()` entfernt).
+  - Löschrecht bei `groups/{groupId}/members/{memberId}` geschärft: Nur das Mitglied selbst (Austritt) oder ein Admin darf Mitglieder löschen.
+- [x] **Serverseitige Datenvalidierung**:
+  - `orders`: Prüfung auf nicht-negative Preise (`priceCents >= 0`).
+  - `reviews`: Validierung, dass alle Ratings (`hostRating`, `foodRating`, `eveningRating`) im gültigen Wertebereich von 1 bis 5 Sternen liegen.
+- [x] **Vorbereitung für Manuellen Test (#24)**: Die Rulings definieren die serverseitigen Erwartungswerte für Mehrbenutzertests (z. B. Zugriffsverweigerung mit `PERMISSION_DENIED` bei Zugriff auf fremde Gruppen oder unbefugtes Löschen).
+
 ## 9. Nächster Schritt
 
-Nach erfolgreicher Umsetzung von **MS4 – Responsive Design** folgen: **Manueller Test (#24)** und **Firebase Rulings (#49)**.
+Nach erfolgreicher Umsetzung von **MS4 – Firebase Rulings (#49)** folgt als abschließender Issue von Meilenstein 4: **Manueller Test (#24)**.
